@@ -1,0 +1,7 @@
+# Pycharm
+.idea
+venv/
+env/
+
+# Distribution/Packaging
+__pycache__/
