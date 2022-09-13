@@ -1,201 +1,172 @@
-## 绘制3D拓扑图的功能设计
+# 绘制3D拓扑图的功能设计
 
-### 接口设计
-#### UI接口：获取所有的观测实体信息
+## 功能设计
 
-该接口返回用于绘制3D拓扑图的所有观测实体信息，主要包括：
+gala-spider 定期从 Prometheus 收集数据，生成 3D 拓扑图，并将生成的拓扑图存储到本地图数据库中。为了实现该功能，需要考虑如下几个方面的设计：
 
-- 每个观测实体的详细信息，包括：标识信息、属性信息、指标信息以及分层信息等。
-- 实体之间的关联关系。
+- 拓扑图存储模型
+- 配置观测对象
+- 配置拓扑关系
+- 拓扑图构建
+
+### 拓扑图存储模型
+
+为了将生成的拓扑图进行持久化存储，本项目选型一个支持图存储的开源数据库 arangodb 来进行存储。
+
+#### 图的节点
+
+图的节点表示了拓扑图中的观测对象的一个观测实例，它的数据结构如下：
+
+| 属性      | 描述                                                         |
+| --------- | ------------------------------------------------------------ |
+| _id       | 节点ID，数据库中的全局唯一标识符                             |
+| _key      | 节点索引，数据库中给定节点集合下的唯一标识符                 |
+| type      | 表示观测实例的对象类型                                       |
+| timestamp | 表示观测实例采集的时间点，单位为秒                           |
+| level     | 节点所在的拓扑分层                                           |
+| metrics   | 表示观测实例采集的指标信息，它是一个字典结构，key表示指标名，value表示指标的值 |
+| 其它属性  | 表示观测实例的标签信息，包括标识字段、标签字段，不同观测类型包含不同的标签信息 |
+
+设计说明：
+
+- `_key` ：表示一个观测实例的实体ID，存储时进行赋值，而不是由数据库自动生成。
 
 
-接口定义如下。详细的接口定义参见接口配置文件：[swagger.yaml](./swagger.yaml)
+
+示例：下面展示了一个观测类型为线程（thread）的节点内容，
 
 ```json
 {
-  "code": "",
-  "msg": "",
-  "timestamp": "",
-  "entityids": [],
-  "entities": [
-    {
-      "entityid": "",
-      "type": "",
-      "name": "",
-      "level": "",
-      "dependingitems": [
-        {
-          "relation_id": "",
-          "layer": "",
-          "target": {
-            "type": "",
-            "entityid": ""
-          }
-        },
-      ],
-      "dependeditems": [
-        {
-          "relation_id": "",
-          "layer": "",
-          "target": {
-            "type": "",
-            "entityid": ""
-          }
-        }
-      ],
-      "attrs": [
-        {
-          "key": "",
-          "value": "",
-          "vtype": ""
-        }
-      ],
-      "anomaly": {}
+    "_key": "THREAD_4c739ef759c142c18e8c3c29f115e873_928",
+    "_id": "ObserveEntities_1654930858/THREAD_4c739ef759c142c18e8c3c29f115e873_928",
+    "type": "thread",
+    "level": "PROCESS",
+    "timestamp": 1654930858,
+    "machine_id": "4c739ef759c142c18e8c3c29f115e873",
+    "pid": "928",
+    "comm": "dbus-daemon",
+    "major": "8",
+    "minor": "0",
+    "tgid": "928",
+    "metrics": {
+    	"fork_count": "0",
+    	"task_hang_count": "0",
+    	"task_io_count": "26209396",
+    	"task_io_time_us": "0",
+    	"task_io_wait_time_us": "1"
     }
-  ]
 }
 ```
 
-关键字段说明：
-- entity type：观测实体类型，例如 host、container、task、tcp_link 等。
-- entity id：观测实体唯一标识符。
-- entity name：观测实体的名称。
-- entity level：观测实体所在的拓扑图分层，例如 host 层、container 层、process 层等。
-- entity attrs：观测实体的属性信息，是一个<属性名，属性值>对组成的集合。不同观测实体之间的差异在实体属性中体现。
-- entity dependingitems: 观测实体作为关联关系的主体集合。假设当前观测实体为A，关联关系格式为：`实体A 关联关系类型 实体B` 。
-- entity dependeditems：观测实体作为关联关系的客体集合。假设当前观测实体为A，关联关系格式为：`实体B 关联关系类型 实体A` 。
-- entity anomaly：观测实体的异常检测结果信息。
+#### 节点集合
+
+不同时间点对应的拓扑图是不同的，因此，我们针对每个时间戳定义一个节点集合，节点集合的名称由 `ObserveEntities_<timestamp>` 组成，表示给定时间戳 `timestamp` 下的节点集合。通过指定节点集合，我们可以查询给定时间点下所有观测实例的集合。
+
+#### 图的边
+
+图的边表示了拓扑图中观测实例之间的拓扑依赖关系，它的数据结构如下：
+
+| 属性      | 描述                                       |
+| --------- | ------------------------------------------ |
+| _id       | 边ID，数据库中的全局唯一标识符             |
+| _key      | 边索引，数据中给定边集合下的唯一标识符     |
+| _from     | 表示关系主体的节点ID                       |
+| _to       | 表示关系客体的节点ID                       |
+| type      | 表示拓扑关系的类型                         |
+| timestamp | 表示拓扑关系生成的时间点，单位为秒         |
+| layer     | 表示拓扑关系的属性，比如直接关系或间接关系 |
+
+设计说明：
+
+- `_key` ：它的值由数据库自动生成。
 
 
-### 功能设计
-#### 配置观测对象
-我们通过配置文件的方式来支持新增的观测对象。通过配置每个观测对象的元数据信息，包括标识信息、属性信息、指标信息以及观测对象之间的关联关系等信息，就能知道如何获取该观测对象的实例信息，以及如何在3D拓扑图中呈现。这种方式提供很好的可扩展性。
 
-下面以 task 观测对象为例来介绍观测对象的配置结构。详细的配置信息参见配置文件：[observe.yaml](../config/observe.yaml)
-```yaml
-observe_entities:
-  -
-    type: task
-    keys:
-      - pid
-      - machine_id
-    labels:
-      - &task_name task_name
-      - tgid
-      - pidns
-      - container_id
-    name: *task_name
-    metrics:
-      - fork_count
-    level: PROCESS
-    dependingitems:
-      -
-        id: runs_on
-        layer: direct
-        toTypes:
-          - container
-          - host
-      -
-        id: connect
-        layer: indirect
-        toTypes:
-          - task
-    dependeditems:
-      -
-        id: belongs_to
-        layer: direct
-        fromTypes:
-          - task
-          - endpoint
-          - tcp_link
-          - ipvs_link
-          - nginx_link
-  
+示例：下面展示了一个表示线程（thread）观测实例和进程（system_proc）观测实例具有从属关系（belongs_to）的边内容，
+
+```json
+{
+    "_key": "1300212",
+    "_id": "belongs_to/1300212",
+    "_from": "ObserveEntities_1654930858/THREAD_4c739ef759c142c18e8c3c29f115e873_1687278",
+    "_to": "ObserveEntities_1654930858/SYSTEM_PROC_4c739ef759c142c18e8c3c29f115e873_1687219",
+    "type": "belongs_to",
+    "timestamp": 1654930858,
+    "layer": "direct"
+}
 ```
 
-配置说明：
+#### 边集合
 
-- type：观测对象类型。代码中会添加所有支持的观测对象类型，如果不符合则加载配置时check不通过。
-- keys：作为全局唯一标识该观测对象的一个实例的标签信息集合。用于在spider中生成一个全局唯一的entity id。
-- labels：观测对象的非metrics的标签信息，keys也是一种标签信息。
-- name：观测对象的实例名称，它的值会关联到标签信息里面对应的字段值。用于在UI呈现。
-- metrics：观测对象的观测指标信息。
-- level：观测对象所在3d拓扑架构的分层。
-- dependingitems：观测对象作为关系主体所涉及的关联关系，关系客体为其他类型的观测对象。
-  - id：关联关系名称。
-  - toTypes：关联关系的观测对象客体。
-- dependeditems：观测对象作为关系客体所涉及的关联关系，关系主体为其他类型的观测对象。
-  - id：关联关系名称。
-  - fromTypes：关联关系的观测对象主体。
+针对每种拓扑关系类型，我们定义一个相应的边集合，边集合的名称与拓扑关系类型相同。通过指定边集合，我们可以查询具有指定拓扑依赖关系的拓扑子图。
 
+#### 时间戳集合
 
-#### 观测对象定义
+由于拓扑图是每隔一段时间（比如每隔 1 分钟）生成的，我们定义一个名为 `Timestamps` 的时间戳集合，用于记录所有已生成拓扑图的时间点。通过查询时间戳集合，我们可以获取距离指定时间点最近一次生成拓扑图的时间点，进而查询对应的拓扑图。
 
-目前支持的观测对象有：
+时间戳集合中一条记录的内容很简单，它的数据结构如下：
 
-| 观测对象   | 描述信息   |
-| ---------- | ---------- |
-| host            | 主机/虚拟机节点    |
-| container       | 容器节点    |
-| task            | 进程节点 |
-| endpoint        | 进程的通信端点 |
-| tcp_link        | tcp连接信息 |
-| ipvs_link       | ipvs连接信息 |
-| nginx_link      | nginx连接信息 |
-| haproxy_link    | haproxy连接信息 |
+| 属性 | 描述                                   |
+| ---- | -------------------------------------- |
+| _id  | 时间戳ID                               |
+| _key | 时间戳索引，它的值为时间戳的字符串表示 |
 
+示例：在时间点 1654930858 的时间戳内容如下，
 
-#### 关联关系定义
-
-关联关系可分为两种。一种是直接的（direct）关联关系，是指物理上直观可见的关系。另一种是间接的（indirect）关联关系，是指在物理上不存在但逻辑上可建立的关系。
-
-目前支持的直接关联关系有：
-
-| 关系主体   | 关系名称   | 关系客体             |
-| ---------- | ---------- | -------------------- |
-| container  | runs_on    | host                 |
-| task       | runs_on    | host/container       |
-| task       | belongs_to | task                 |
-| endpoint   | belongs_to | task                 |
-| tcp_link   | belongs_to | task                 |
-| ipvs_link  | belongs_to | task                 |
-| nginx_link | belongs_to | task                 |
-| tcp_link   | is_server  | ipvs_link/nginx_link/haproxy_link |
-| tcp_link   | is_client  | ipvs_link/nginx_link/haproxy_link |
-| tcp_link   | is_peer    | tcp_link             |
-
-
-
-支持的间接关联关系有：
-
-| 关系主体  | 关系名称 | 关系客体  |
-| --------- | -------- | --------- |
-| task      | connect  | task      |
-| container | connect  | container |
-| host      | connect  | host      |
-
-#### 拓扑分层定义
-
-目前支持的拓扑分层有：
-
-| 拓扑分层   | 描述信息   |
-| ---------- | ---------- |
-| HOST            | 主机层    |
-| CONTAINER       | 容器层    |
-| RUNTIME        | 运行时层 |
-| PROCESS         | 进程层 |
-| RPC        | RPC层 |
-| LB       | LB层 |
-| MB      | MB层 |
+```json
+{
+    "_key": "1654930858",
+    "_id": "Timestamps/1654930858"
+}
+```
 
 #### 实体 ID 生成
 
-观测对象的实例 ID 通过观测对象中定义的 `type` 和 `keys` 组合生成。
+观测对象的实例 ID 通过观测对象中定义的 `type` 和 `keys` 组合生成，它的格式为 `<machine_id>_<type>_<key1>_<key2>_..._<keyN>`。
 
-#### 实体 name 获取
+### 配置观测对象
 
-在观测对象配置文件中通过添加 name 字段，关联到观测对象 labels 中指定的字段获取。
+在生成拓扑图之前，我们需要获取必要的元数据信息，这些信息包括：
 
-#### 实体 attrs 获取
+- 支持哪些观测对象类型；
+- 每个观测对象的元数据信息，包括标识字段、标签字段、指标字段；
+- 观测对象之间支持哪些拓扑关系，以及这些拓扑关系如何建立。
 
-实体的属性信息包含观测对象的配置文件中的： keys 、 labels 、metrics 。
+基于这些元数据信息，我们就能知道应该获取哪些观测对象的实例信息，以及如何建立观测实例之间的拓扑关系，最终生成拓扑图。
+
+
+
+一个观测对象的元数据结构定义如下：
+
+- type：观测对象类型。
+- keys：标识字段的集合，用于全局唯一标识该观测对象的一个实例。
+- labels：标签字段的集合，提供了观测实例除 keys 外的标签信息。
+- metrics：指标字段的集合。
+- level：观测对象所在的拓扑分层。
+
+
+
+gala-spider 同时支持通过两种方式获取观测对象的元数据信息。
+
+1. 通过 kafka 获取 gala-gopher 支持的观测对象
+
+   gala-gopher 会周期性将它支持的观测对象的元数据信息发送到 kafka 服务器。gala-spider 会启动一个后台服务来监听 kafka 中的观测对象元数据信息。
+
+2. 通过配置文件自定义扩展的观测对象
+
+   对于在 gala-gopher 不支持的观测对象类型，可以通过配置文件自定义扩展的观测对象，详情参见[这里](./how_to_add_new_observe_object.md)。
+
+
+
+
+### 配置拓扑关系
+
+拓扑关系，或关联关系，定义了观测对象之间存在的物理上和逻辑上的关系。关联关系可分为两种：一种是直接的（direct）关联关系，是指物理上直观可见的关系；另一种是间接的（indirect）关联关系，是指在物理上不存在但逻辑上可建立的关系。
+
+gala-spider当前支持哪些拓扑关系，以及这些关系如何建立，参见[这里](./how_to_add_new_observe_object.md)。
+
+
+
+## 接口设计
+
+gala-spider 将生成的 OS 级别的拓扑关系图存储到图数据 arangodb 中，并通过 arangodb 服务器的 API 向外提供拓扑图的查询能力。gala-spider 使用到的 API 详情参见[这里](../../guide/zh-CN/api/3d-topo-graph.md)。
