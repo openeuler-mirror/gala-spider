@@ -81,6 +81,52 @@ gala-spider 项目提供了两个功能模块，它们分别是：
      systemctl start gala-spider
      ```
 
+3. 基于 docker 容器化部署
+
+   - 生成容器镜像
+
+     在 gala-spider 项目根目录下，执行：
+
+     ```sh
+     docker build -f ./ci/gala-spider/Dockerfile -t gala-spider:1.0.0 .
+     ```
+
+     需要注意的是，生成容器镜像的过程中需要从 pip 源中下载依赖包，如果默认的 pip 源不可用，可通过修改 `./ci/gala-spider/Dockerfile` 配置可用的 pip源，修改示例如下：
+
+     ```sh
+     # config pip source
+     RUN pip3 config set global.index-url https://mirrors.tools.huawei.com/pypi/simple \
+         && pip3 config set install.trusted-host mirrors.tools.huawei.com
+     ```
+
+   - 运行容器
+
+     在部署环境中，执行：
+
+     ```sh
+     docker run -e prometheus_server=192.168.122.251:9090 -e arangodb_server=192.168.122.103:8529 -e kafka_server=192.168.122.251:9092 -e log_level=DEBUG gala-spider:1.0.0
+     ```
+
+     环境变量说明：若不指定，则使用配置文件默认配置。
+
+     - prometheus_server ：指定 Prometheus 服务器地址
+     - arangodb_server ：指定 arangodb 服务器地址
+     - kafka_server ：指定 kafka 服务器地址
+     - log_level ：指定 gala-spider 日志打印级别
+
+     此外，如果需要从宿主机的配置文件中启动容器，可通过挂载卷的方式执行：
+
+     ```sh
+     docker run -e prometheus_server=192.168.122.251:9090 -e arangodb_server=192.168.122.103:8529 -e kafka_server=192.168.122.251:9092 -e log_level=DEBUG -v /etc/gala-spider:/etc/gala-spider -v /var/log/gala-spider:/var/log/gala-spider gala-spider:1.0.0
+     ```
+
+     需要说明的是，
+
+     - 如果宿主机目录 `/etc/gala-spider` 中不存在配置文件，则容器会在第一次启动时将默认的配置文件复制到宿主机目录 `/etc/gala-spider` 中。
+     - 如果宿主机目录 `/etc/gala-spider` 中相关的配置文件已存在，它将会覆盖容器中默认的配置文件。此时，通过 `-e` 参数指定的配置项将会失效。
+
+     此外，可以通过 `-v /var/log/gala-spider:/var/log/gala-spider` 将容器运行的日志文件映射到宿主机上，方便后续查看。
+
 #### gala-inference 软件部署
 
 1. 基于源码编译、安装、运行
@@ -102,7 +148,7 @@ gala-spider 项目提供了两个功能模块，它们分别是：
      ```
      gala-inference
      ```
-   
+
 2. 基于rpm包安装
 
     - 配置 yum 源
@@ -120,6 +166,52 @@ gala-spider 项目提供了两个功能模块，它们分别是：
       ```sh
       systemctl start gala-inference
       ```
+
+3. 基于 docker 容器化部署
+
+    - 生成容器镜像
+
+      在 gala-spider 项目根目录下，执行：
+
+      ```sh
+      docker build -f ./ci/gala-inference/Dockerfile -t gala-inference:1.0.0 .
+      ```
+
+      需要注意的是，生成容器镜像的过程中需要从 pip 源中下载依赖包，如果默认的 pip 源不可用，可通过修改 `./ci/gala-inference/Dockerfile` 配置可用的 pip源，修改示例如下：
+
+      ```sh
+      # config pip source
+      RUN pip3 config set global.index-url https://mirrors.tools.huawei.com/pypi/simple \
+          && pip3 config set install.trusted-host mirrors.tools.huawei.com
+      ```
+
+    - 运行容器
+
+      在部署环境中，执行：
+
+      ```sh
+      docker run -e prometheus_server=192.168.122.251:9090 -e arangodb_server=192.168.122.103:8529 -e kafka_server=192.168.122.251:9092 -e log_level=DEBUG gala-inference:1.0.0
+      ```
+
+      环境变量说明：若不指定，则使用配置文件默认配置。
+
+      - prometheus_server ：指定 Prometheus 服务器地址
+      - arangodb_server ：指定 arangodb 服务器地址
+      - kafka_server ：指定 kafka 服务器地址
+      - log_level ：指定 gala-spider 日志打印级别
+
+      此外，如果需要从宿主机的配置文件中启动容器，可通过挂载卷的方式执行：
+
+      ```sh
+      docker run -e prometheus_server=192.168.122.251:9090 -e arangodb_server=192.168.122.103:8529 -e kafka_server=192.168.122.251:9092 -e log_level=DEBUG -v /etc/gala-inference:/etc/gala-inference -v /var/log/gala-inference:/var/log/gala-inference gala-inference:1.0.0
+      ```
+
+      需要说明的是，
+
+      - 如果宿主机目录 `/etc/gala-inference` 中不存在配置文件，则容器会在第一次启动时将默认的配置文件复制到宿主机目录 `/etc/gala-inference` 中。
+      - 如果宿主机目录 `/etc/gala-inference` 中相关的配置文件已存在，它将会覆盖容器中默认的配置文件。此时，通过 `-e` 参数指定的配置项将会失效。
+
+      此外，可以通过 `-v /var/log/gala-inference:/var/log/gala-inference` 将容器运行的日志文件映射到宿主机上，方便后续查看。
 
 
 ### gala-spider 外部依赖软件部署
