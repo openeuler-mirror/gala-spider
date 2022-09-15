@@ -6,7 +6,6 @@
 - 观测对象的类型
 - 全局唯一标识该观测对象的一个观测实例的字段集合
 - 观测对象的标签字段集合
-- 观测对象的名称字段
 - 观测对象的观测指标集合
 - 观测对象所在的拓扑分层
 
@@ -128,9 +127,11 @@ observe_entities:
 
 ## 如何新增拓扑关系
 
-拓扑关系，或关联关系，定义了观测对象之间存在的物理上和逻辑上的关系。关联关系可分为两种：一种是直接的（direct）关联关系，是指物理上直观可见的关系；另一种是间接的（indirect）关联关系，是指在物理上不存在但逻辑上可建立的关系。当前系统默认支持的拓扑关系在 `gala-spider` 工程下的 [config/topo-relation.yaml](../../../config/topo-relation.yaml) 配置文件中。
+### 关系类型定义
 
-目前支持的直接关联关系有：
+拓扑关系，或关联关系，定义了观测对象之间存在的物理上和逻辑上的关系。关联关系可分为两种：一种是直接的（direct）关联关系，是指物理上直观可见的关系；另一种是间接的（indirect）关联关系，是指在物理上不存在但逻辑上可建立的关系。
+
+gala-spider 目前支持的直接关联关系有：
 
 | 关系名称   | 关系描述                                                     |
 | ---------- | ------------------------------------------------------------ |
@@ -149,8 +150,11 @@ observe_entities:
 
 例如，观测对象 `proc` 与其他观测对象有多种关联关系。比如：`proc runs_on host` 表示进程运行在某个主机上，`proc runs_on container` 表示进程运行在某个容器上，`proc connect proc` 表示进程与另一个进程具有间接的连接关系。
 
+### 新增拓扑关系
 
-对于 `proc` 的一个关联关系 `proc runs_on host` ，对应的配置内容如下。
+关系类型定义好后，我们可以通过配置文件的方式新增拓扑关系，下面结合一个例子讲解如何新增拓扑关系。当前系统默认支持的拓扑关系在 `gala-spider` 工程下的 [config/topo-relation.yaml](../../../config/topo-relation.yaml) 配置文件中。
+
+对于 `proc` 的一个拓扑关系 `proc runs_on host` ，对应的配置内容如下。
 
 ```yaml
 topo_relations:
@@ -190,3 +194,29 @@ topo_relations:
     - `side` ：约束的对象是关系主体还是关系客体。取值为：`from` 和 `to` ，分别表示关系主体和关系客体。
     - `label` ：约束的字段名称。
     - `value` ：约束的字段值。
+
+### 支持的拓扑关系
+
+当前系统默认支持的拓扑关系包括：
+
+| 关系主体    | 关系类型   | 关系客体    | 关系描述                         |
+| ----------- | ---------- | ----------- | -------------------------------- |
+| host        | connect    | host        | 一台主机与另一台主机的连接关系。 |
+| container   | connect    | container   | 一个容器与另一个容器的连接关系。 |
+| proc        | connect    | proc        | 一个进程与另一个进程的连接关系。 |
+| container   | runs_on    | host        | 一个容器运行在一台主机上。       |
+| proc        | runs_on    | host        | 一个进程运行在一台主机上。       |
+| proc        | belongs_to | appinstance | 一个进程归属于一个应用实例。     |
+| proc        | belongs_to | container   | 一个进程归属于一个容器。         |
+| thread      | belongs_to | proc        | 一个线程归属于一个进程。         |
+| endpoint    | belongs_to | proc        | 一个通信端口归属于一个进程。     |
+| tcp_link    | belongs_to | proc        | 一个 tcp 连接归属于一个进程。    |
+| sli         | belongs_to | proc        | 一个 sli 归属于一个进程。        |
+| cpu         | belongs_to | host        | 一个 cpu 归属于一台主机。        |
+| nic         | belongs_to | host        | 一个网卡归属于一台主机。         |
+| qdisc       | belongs_to | nic         | 一个 qdisc 归属于一个网卡。      |
+| disk        | belongs_to | host        | 一个磁盘归属于一台主机。         |
+| block       | belongs_to | disk        | 一个块设备归属于一个磁盘。       |
+| file_system | belongs_to | host        | 一个文件系统归属于一台主机。     |
+| tcp_link    | is_peer    | tcp_link    | 一个 tcp 连接的对端 tcp 连接。   |
+
