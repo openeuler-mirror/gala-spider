@@ -79,6 +79,7 @@ def query_subgraph(db, ts, start_node_id, edge_collection, depth=1):
     WITH @@collection
     FOR v, e IN 1..@depth ANY @start_v
       {}
+      options {{"uniqueVertices": "path"}}
       return {{"vertex": v, "edge": e}}
     '''.format(edge_coll_str)
     try:

@@ -124,6 +124,27 @@ class CpuRule1(Rule):
                 entity_cause_graph.add_edge(cpu_node.get('_id'), proc_node.get('_id'))
 
 
+class NicRule1(Rule):
+    def rule_parsing(self, causal_graph):
+        topo_nodes = causal_graph.topo_nodes
+        entity_cause_graph = causal_graph.entity_cause_graph
+
+        tcp_link_nodes = []
+        nic_nodes = []
+        for node in topo_nodes.values():
+            type_ = node.get('type')
+            if type_ == EntityType.TCP_LINK.value:
+                tcp_link_nodes.append(node)
+            elif type_ == EntityType.NETCARD.value:
+                nic_nodes.append(node)
+        # 规则：如果 nic 和 tcp_link 属于同一个主机，则建立 nic 到 tcp_link 的因果关系
+        for nic_node in nic_nodes:
+            for tcp_link_node in tcp_link_nodes:
+                if nic_node.get('machine_id') != tcp_link_node.get('machine_id'):
+                    continue
+                entity_cause_graph.add_edge(nic_node.get('_id'), tcp_link_node.get('_id'))
+
+
 class RuleEngine:
     def __init__(self):
         self.rules: List[Rule] = []
