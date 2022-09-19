@@ -108,7 +108,7 @@ class ArangoObserveEntityDaoImpl(ArangoBaseDaoImpl, ObserveEntityDao):
         coll: Collection = self.db.collections[coll_name]
 
         try:
-            count = coll.bulkSave(docs, overwrite=True)
+            count = coll.bulkSave(docs, onDuplicate='ignore', overwrite=True)
         except UpdateError as ex:
             logger.logger.error(ex)
             return False
@@ -140,7 +140,7 @@ class ArangoRelationDaoImpl(ArangoBaseDaoImpl, RelationDao):
             coll: Collection = self.db.collections[coll_name]
 
             try:
-                count = coll.bulkSave(edges)
+                count = coll.bulkSave(edges, onDuplicate='ignore')
             except UpdateError as ex:
                 logger.logger.error(ex)
                 return False

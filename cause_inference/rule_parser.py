@@ -12,7 +12,7 @@ class Rule(metaclass=ABCMeta):
         pass
 
 
-# 规则：如果一个 tcp_link 观测实例 A 和一个 ksliprobe 观测实例 B 属于同一个 process 观测实例 C，则建立 A 到 B 的因果关系。
+# 规则：如果一个 tcp_link 观测实例 A 和一个 sli 观测实例 B 属于同一个 process 观测实例 C，则建立 A 到 B 的因果关系。
 class SliRule1(Rule):
     def rule_parsing(self, causal_graph):
         topo_edges = causal_graph.topo_edges
@@ -53,7 +53,7 @@ class BelongsToRule1(Rule):
             to_type = to_node.get('type')
 
             if from_type == EntityType.REDIS_SLI.value and to_type == EntityType.PROCESS.value:
-                # 规则：建立 process 到 redis_sli 的因果关系
+                # 规则：建立 process 到 sli 的因果关系
                 entity_cause_graph.add_edge(edge.get('_to'), edge.get('_from'), **edge)
             elif from_type == EntityType.BLOCK.value and to_type == EntityType.DISK.value:
                 # 规则：建立 disk 到 block 的因果关系
@@ -103,6 +103,27 @@ class ProcessRule1(Rule):
                 entity_cause_graph.add_edge(blk_node.get('_id'), proc_node.get('_id'))
 
 
+class CpuRule1(Rule):
+    def rule_parsing(self, causal_graph):
+        topo_nodes = causal_graph.topo_nodes
+        entity_cause_graph = causal_graph.entity_cause_graph
+
+        proc_nodes = []
+        cpu_nodes = []
+        for node in topo_nodes.values():
+            type_ = node.get('type')
+            if type_ == EntityType.PROCESS.value:
+                proc_nodes.append(node)
+            elif type_ == EntityType.CPU.value:
+                cpu_nodes.append(node)
+        # 规则：如果 cpu 和 process 属于同一个主机，则建立 cpu 到 process 的因果关系
+        for cpu_node in cpu_nodes:
+            for proc_node in proc_nodes:
+                if cpu_node.get('machine_id') != proc_node.get('machine_id'):
+                    continue
+                entity_cause_graph.add_edge(cpu_node.get('_id'), proc_node.get('_id'))
+
+
 class RuleEngine:
     def __init__(self):
         self.rules: List[Rule] = []
@@ -120,3 +141,4 @@ rule_engine.add_rule(BelongsToRule1())
 rule_engine.add_rule(RunsOnRule1())
 rule_engine.add_rule(SliRule1())
 rule_engine.add_rule(ProcessRule1())
+rule_engine.add_rule(CpuRule1())
