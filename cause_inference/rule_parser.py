@@ -1,9 +1,41 @@
+import os
 from abc import ABCMeta
 from abc import abstractmethod
 from typing import List
 
+import yaml
+
 from spider.conf.observe_meta import RelationType
 from spider.conf.observe_meta import EntityType
+from spider.util import logger
+
+
+class MetricPairSet:
+    def __init__(self, from_: set, to_: set):
+        self.from_ = from_
+        self.to_ = to_
+
+    def check_metric_pair(self, from_metric_id: str, to_metric_id: str) -> bool:
+        if self.from_ and from_metric_id not in self.from_:
+            return False
+        if self.to_ and to_metric_id not in self.to_:
+            return False
+        return True
+
+
+class RuleMeta:
+    def __init__(self, from_type, to_type, metric_range=None):
+        self.from_type = from_type
+        self.to_type = to_type
+        self.metric_range: List[MetricPairSet] = metric_range or []
+
+    def check_metric_pair(self, from_metric_id: str, to_metric_id: str) -> bool:
+        if not self.metric_range:
+            return True
+        for item in self.metric_range:
+            if item.check_metric_pair(from_metric_id, to_metric_id):
+                return True
+        return False
 
 
 class Rule(metaclass=ABCMeta):
@@ -29,7 +61,7 @@ class SliRule1(Rule):
                 continue
             if from_n.get('type') == EntityType.TCP_LINK.value:
                 tcp_bt_p.append(edge)
-            elif from_n.get('type') == EntityType.REDIS_SLI.value:
+            elif from_n.get('type') == EntityType.SLI.value:
                 sli_bt_p.append(edge)
 
         for edge1 in tcp_bt_p:
@@ -52,7 +84,7 @@ class BelongsToRule1(Rule):
             from_type = from_node.get('type')
             to_type = to_node.get('type')
 
-            if from_type == EntityType.REDIS_SLI.value and to_type == EntityType.PROCESS.value:
+            if from_type == EntityType.SLI.value and to_type == EntityType.PROCESS.value:
                 # 规则：建立 process 到 sli 的因果关系
                 entity_cause_graph.add_edge(edge.get('_to'), edge.get('_from'), **edge)
             elif from_type == EntityType.BLOCK.value and to_type == EntityType.DISK.value:
@@ -148,6 +180,7 @@ class NicRule1(Rule):
 class RuleEngine:
     def __init__(self):
         self.rules: List[Rule] = []
+        self.rule_metas = {}
 
     def add_rule(self, rule: Rule):
         self.rules.append(rule)
@@ -156,6 +189,35 @@ class RuleEngine:
         for rule in self.rules:
             rule.rule_parsing(causal_graph)
 
+    def load_rule_meta_from_yaml(self, rule_path: str) -> bool:
+        abs_rule_path = os.path.abspath(rule_path)
+        if not os.path.exists(abs_rule_path):
+            logger.logger.warning("Rule meta path '{}' not exist", abs_rule_path)
+            return True
+        try:
+            with open(abs_rule_path, 'r') as file:
+                data = yaml.safe_load(file)
+        except IOError as ex:
+            logger.logger.warning(ex)
+            return False
+
+        infer_rules = data.get("infer_rules", [])
+        for rule_meta in infer_rules:
+            saved_metric_range = []
+            for item in rule_meta.get("metric_range", []):
+                saved_metric_range.append(MetricPairSet(set(item.get('from', [])), set(item.get('to', []))))
+            saved_rule_meta = RuleMeta(rule_meta.get('from_type'), rule_meta.get('to_type'), saved_metric_range)
+            self.rule_metas.setdefault((rule_meta.get("from_type"), rule_meta.get("to_type")), saved_rule_meta)
+
+        return True
+
+    def add_rule_meta(self, causal_graph):
+        entity_cause_graph = causal_graph.entity_cause_graph
+        for edge in entity_cause_graph.edges:
+            from_type = entity_cause_graph.nodes[edge[0]].get('type')
+            to_type = entity_cause_graph.nodes[edge[1]].get('type')
+            entity_cause_graph.edges[edge]["rule_meta"] = self.rule_metas.get((from_type, to_type))
+
 
 rule_engine = RuleEngine()
 rule_engine.add_rule(BelongsToRule1())
@@ -163,3 +225,4 @@ rule_engine.add_rule(RunsOnRule1())
 rule_engine.add_rule(SliRule1())
 rule_engine.add_rule(ProcessRule1())
 rule_engine.add_rule(CpuRule1())
+rule_engine.add_rule(NicRule1())

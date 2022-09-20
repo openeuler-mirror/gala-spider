@@ -220,7 +220,7 @@ topo_relations:
                 from: machine_id
                 to: machine_id
   -
-    type: file_system
+    type: fs
     dependingitems:
       -
         id: belongs_to

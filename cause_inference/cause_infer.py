@@ -81,6 +81,7 @@ def parse_abn_evt(data) -> AbnormalEvent:
         abnormal_score=1.0,
         metric_labels=resource.get('metric_label'),
         abnormal_entity_id=attrs.get('entity_id'),
+        desc=resource.get('description', '') or data.get('Body', '')
     )
     return abn_evt
 
@@ -118,7 +119,8 @@ def format_infer_result(causes, causal_graph):
         'metric_id': abnormal_kpi.abnormal_metric_id,
         'entity_id': abnormal_kpi.abnormal_entity_id,
         'timestamp': abnormal_kpi.timestamp,
-        'metric_labels': abnormal_kpi.metric_labels
+        'metric_labels': abnormal_kpi.metric_labels,
+        'desc': abnormal_kpi.desc,
     }
     cause_metrics = []
     metric_cause_graph = causal_graph.metric_cause_graph
@@ -129,6 +131,7 @@ def format_infer_result(causes, causal_graph):
             'entity_id': parse_entity_id(cause.entity_id),
             'metric_labels': node_attrs.get('metric_labels', {}),
             'timestamp': node_attrs.get('timestamp'),
+            'desc': node_attrs.get('desc'),
         }
         path = []
         for node_id in cause.path:
@@ -141,9 +144,15 @@ def format_infer_result(causes, causal_graph):
             })
         cause_metric['path'] = path
         cause_metrics.append(cause_metric)
+
+    desc = '{}, the top {} causes are:\n'.format(abn_kpi.get('desc'), len(causes))
+    for i, cause_metric in enumerate(cause_metrics):
+        desc += '{}. {}\n'.format(i, cause_metric.get('desc'))
+
     res = {
         'abnormal_kpi': abn_kpi,
-        'cause_metrics': cause_metrics
+        'cause_metrics': cause_metrics,
+        'desc': desc
     }
     return res
 
@@ -156,6 +165,7 @@ def cause_locating(abnormal_kpi: AbnormalEvent, abnormal_metrics: List[AbnormalE
     # 3. 基于专家规则，补全拓扑子图的隐式因果关系
     causal_graph = CausalGraph(abn_topo_subgraph, abnormal_kpi, abnormal_metrics)
     rule_engine.rule_parsing(causal_graph)
+    rule_engine.add_rule_meta(causal_graph)
     # 4. 根据异常观测对象（存在异常指标的观测对象）对拓扑子图进行剪枝，构建故障传播图
     causal_graph.prune_by_abnormal_node()
     # 5. 生成异常指标之间的因果图

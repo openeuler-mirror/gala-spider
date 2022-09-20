@@ -33,12 +33,13 @@ class EntityType(ValueCheckEnum):
     IPVS_LINK = 'ipvs_link'
     NGINX_LINK = 'nginx_link'
     HAPROXY_LINK = 'haproxy_link'
-    REDIS_CLIENT = 'redis_client'
-    REDIS_SLI = 'sli'
+    SLI = 'sli'
     DISK = 'disk'
     BLOCK = 'block'
     NETCARD = 'nic'
     CPU = 'cpu'
+    FILE_SYSTEM = 'fs'
+    QDISC = 'qdisc'
 
 
 class RelationType(ValueCheckEnum):
@@ -73,13 +74,15 @@ entity_level_map = {
     EntityType.CPU.value: TopologyLevelType.HOST.value,
     EntityType.DISK.value: TopologyLevelType.HOST.value,
     EntityType.BLOCK.value: TopologyLevelType.HOST.value,
+    EntityType.FILE_SYSTEM.value: TopologyLevelType.HOST.value,
+    EntityType.QDISC.value: TopologyLevelType.HOST.value,
     # PROCESS level
     EntityType.PROCESS.value: TopologyLevelType.PROCESS.value,
     EntityType.THREAD.value: TopologyLevelType.PROCESS.value,
     EntityType.CONTAINER.value: TopologyLevelType.PROCESS.value,
     EntityType.APPINSTANCE.value: TopologyLevelType.PROCESS.value,
     EntityType.ENDPOINT.value: TopologyLevelType.PROCESS.value,
-    EntityType.REDIS_SLI.value: TopologyLevelType.PROCESS.value,
+    EntityType.SLI.value: TopologyLevelType.PROCESS.value,
     # RPC level
     EntityType.TCP_LINK.value: TopologyLevelType.RPC.value,
     EntityType.HAPROXY_LINK.value: TopologyLevelType.RPC.value,
