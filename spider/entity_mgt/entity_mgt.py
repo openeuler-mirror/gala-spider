@@ -48,29 +48,11 @@ class ObserveEntityCreator:
             val = observe_entity_map.setdefault(entity.type, [])
             val.append(entity)
 
-        hosts = ObserveEntityCreator._create_host_observe_entities(observe_entities)
-        res.extend(hosts)
-
         processes = observe_entity_map.get(EntityType.PROCESS.value, [])
         app_instances = ObserveEntityCreator._create_app_instance_observe_entities(processes)
         res.extend(app_instances)
 
         return res
-
-    @staticmethod
-    def _create_host_observe_entities(observe_entities: List[ObserveEntity]) -> List[ObserveEntity]:
-        host_meta = ObserveMetaMgt().get_observe_meta(EntityType.HOST.value)
-        if not host_meta:
-            return []
-        entity_map: Dict[str, ObserveEntity] = {}
-
-        for entity in observe_entities:
-            host = ObserveEntityCreator._create_entity_from(entity, host_meta)
-            if not host or not host.id:
-                continue
-            entity_map.setdefault(host.id, host)
-
-        return list(entity_map.values())
 
     @staticmethod
     def _create_app_instance_observe_entities(processes: List[ObserveEntity]) -> List[ObserveEntity]:
