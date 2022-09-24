@@ -1,0 +1,32 @@
+infer_rules:
+  -
+    from_type: cpu
+    to_type: proc
+    metric_range:
+      -
+        from: []
+        to:
+          - gala_gopher_proc_utime_jiffies
+          - gala_gopher_proc_stime_jiffies
+  -
+    from_type: block
+    to_type: proc
+    metric_range:
+      -
+        from: []
+        to:
+          - gala_gopher_proc_ns_ext4_read
+          - gala_gopher_proc_ns_ext4_write
+          - gala_gopher_proc_ns_ext4_flush
+          - gala_gopher_proc_ns_overlay_read
+          - gala_gopher_proc_ns_overlay_write
+          - gala_gopher_proc_ns_overlay_flush
+  -
+    from_type: proc
+    to_type: disk
+    metric_range:
+      -
+        from:
+          - gala_gopher_proc_read_bytes
+          - gala_gopher_proc_write_bytes
+        to: []

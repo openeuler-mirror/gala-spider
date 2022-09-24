@@ -16,11 +16,13 @@ from cause_inference.model import AbnormalEvent
 from cause_inference.cause_infer import cause_locating
 from cause_inference.cause_infer import parse_abn_evt
 from cause_inference.cause_infer import normalize_abn_score
+from cause_inference.rule_parser import rule_engine
 from cause_inference.exceptions import InferenceException
 from cause_inference.exceptions import DataParseException
 
 INFER_CONFIG_PATH = '/etc/gala-inference/gala-inference.yaml'
 EXT_OBSV_META_PATH = '/etc/gala-inference/ext-observe-meta.yaml'
+RULE_META_PATH = '/etc/gala-inference/infer-rule.yaml'
 
 
 def init_config():
@@ -33,6 +35,8 @@ def init_config():
         logger.logger.error('Load observe metadata failed.')
         return False
     logger.logger.info('Load observe metadata success.')
+
+    rule_engine.load_rule_meta_from_yaml(RULE_META_PATH)
 
     return True
 
@@ -54,8 +58,8 @@ class ObsvMetaCollThread(threading.Thread):
 class AbnMetricEvtMgt:
     def __init__(self, metric_consumer: KafkaConsumer, valid_duration, aging_duration):
         self.metric_consumer = metric_consumer
-        self.valid_duration = valid_duration
-        self.aging_duration = aging_duration
+        self.valid_duration = valid_duration * 1000
+        self.aging_duration = aging_duration * 1000
         self.all_metric_evts: List[AbnormalEvent] = []
         self.last_evt_ts = 0
 
@@ -164,12 +168,13 @@ def get_recommend_metric_evts(abn_kpi_data: dict) -> List[AbnormalEvent]:
     metric_evts = []
     obsv_meta_mgt = ObserveMetaMgt()
     recommend_metrics = abn_kpi_data.get('Resource', {}).get('recommend_metrics', {})
-    for metric_id, metric_data in recommend_metrics.items():
+    for metric_data in recommend_metrics:
         metric_evt = AbnormalEvent(
             timestamp=abn_kpi_data.get('Timestamp'),
-            abnormal_metric_id=metric_id,
+            abnormal_metric_id=metric_data.get('metric', ''),
             abnormal_score=normalize_abn_score(metric_data.get('score')),
-            metric_labels=metric_data.get('label', {})
+            metric_labels=metric_data.get('label', {}),
+            desc=metric_data.get('description', '')
         )
         if not metric_evt.update_entity_id(obsv_meta_mgt):
             logger.logger.debug("Can't identify entity id of the metric {}".format(metric_evt.abnormal_metric_id))

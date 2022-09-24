@@ -22,7 +22,7 @@ kafka:
   abnormal_metric_topic:
     topic_id: "gala_gopher_event"
     group_id: "abn-metric-inference"
-    consumer_to: 1
+    consumer_to: 5
   inference_topic:
     topic_id: "gala_cause_inference"
 

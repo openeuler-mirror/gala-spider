@@ -10,22 +10,25 @@ from spider.util.entity import escape_entity_id
 
 
 class AbnormalEvent:
-    def __init__(self, timestamp, abnormal_metric_id, abnormal_score=0.0, metric_labels=None, abnormal_entity_id=None):
+    def __init__(self, timestamp, abnormal_metric_id, abnormal_score=0.0,
+                 metric_labels=None, abnormal_entity_id=None, desc=None):
         self.timestamp = timestamp
         self.abnormal_metric_id = abnormal_metric_id
         self.abnormal_score = abnormal_score
         self.metric_labels = metric_labels or {}
         self.abnormal_entity_id = abnormal_entity_id or ''
+        self.desc = desc or ''
         self.hist_data = []
 
     def __repr__(self):
         return ('AbnormalEvent(timestamp={}, abnormal_metric_id="{}", abnormal_score={}, metric_labels={},'
-                ' abnormal_entity_id={})').format(
+                ' abnormal_entity_id={}, desc={})').format(
             self.timestamp,
             self.abnormal_metric_id,
             self.abnormal_score,
             self.metric_labels,
             self.abnormal_entity_id,
+            self.desc
         )
 
     def set_hist_data(self, hist_data):
@@ -57,6 +60,7 @@ class AbnormalEvent:
             'abnormal_score': self.abnormal_score,
             'metric_labels': self.metric_labels,
             'entity_id': self.abnormal_entity_id,
+            'desc': self.desc,
         }
         return res
 
@@ -127,14 +131,22 @@ class CausalGraph:
             for metric_evt in self.get_abnormal_metrics_of_node(entity_id):
                 self.metric_cause_graph.add_node((entity_id, metric_evt.abnormal_metric_id), **metric_evt.to_dict())
         for edge in self.entity_cause_graph.edges:
-            from_entity_id = edge[0]
-            to_entity_id = edge[1]
-            for from_metric_evt in self.get_abnormal_metrics_of_node(from_entity_id):
-                for to_metric_evt in self.get_abnormal_metrics_of_node(to_entity_id):
-                    self.metric_cause_graph.add_edge(
-                        (from_entity_id, from_metric_evt.abnormal_metric_id),
-                        (to_entity_id, to_metric_evt.abnormal_metric_id)
-                    )
+            self.init_metric_edge(edge)
+
+    def init_metric_edge(self, entity_edge):
+        from_entity_id = entity_edge[0]
+        to_entity_id = entity_edge[1]
+        rule_meta = self.entity_cause_graph.edges[entity_edge].get('rule_meta')
+        for from_metric_evt in self.get_abnormal_metrics_of_node(from_entity_id):
+            for to_metric_evt in self.get_abnormal_metrics_of_node(to_entity_id):
+                from_metric_id = from_metric_evt.abnormal_metric_id
+                to_metric_id = to_metric_evt.abnormal_metric_id
+                if rule_meta is not None and not rule_meta.check_metric_pair(from_metric_id, to_metric_id):
+                    continue
+                self.metric_cause_graph.add_edge(
+                    (from_entity_id, from_metric_id),
+                    (to_entity_id, to_metric_id)
+                )
 
 
 class Cause:
