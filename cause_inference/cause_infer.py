@@ -140,12 +140,13 @@ def format_infer_result(causes, causal_graph):
                 'metric_id': node_id[1],
                 'entity_id': parse_entity_id(node_id[0]),
                 'metric_labels': attrs.get('metric_labels', {}),
-                'timestamp': attrs.get('timestamp')
+                'timestamp': attrs.get('timestamp'),
+                'desc': attrs.get('desc')
             })
         cause_metric['path'] = path
         cause_metrics.append(cause_metric)
 
-    desc = '{}, the top {} causes are:\n'.format(abn_kpi.get('desc'), len(causes))
+    desc = '{}, 前 {} 个根因是:\n'.format(abn_kpi.get('desc'), len(causes))
     for i, cause_metric in enumerate(cause_metrics):
         desc += '{}. {}\n'.format(i, cause_metric.get('desc'))
 
