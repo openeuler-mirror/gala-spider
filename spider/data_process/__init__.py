@@ -1,3 +1,4 @@
+from spider.collector import DataCollectorFactory
 from .processor import DataProcessor
 from .prometheus_processor import PrometheusProcessor
 
@@ -5,7 +6,5 @@ from .prometheus_processor import PrometheusProcessor
 class DataProcessorFactory:
     @staticmethod
     def get_instance(data_source: str) -> DataProcessor:
-        if data_source == 'prometheus':
-            return PrometheusProcessor()
-        else:
-            return None
+        collector = DataCollectorFactory.get_instance(data_source)
+        return PrometheusProcessor(collector)

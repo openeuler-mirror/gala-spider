@@ -7,7 +7,7 @@
 gala-spider 配置文件 `/etc/gala-spider/gala-spider.yaml` 配置项说明如下。
 
 - global：全局配置信息
-  - data_source：指定观测指标采集的数据库，当前只支持 prometheus
+  - data_source：指定观测指标采集的数据库，当前支持 prometheus，aom 。
   - data_agent：指定观测指标采集代理，当前只支持 gala_gopher
 - spider：
   - log_conf：日志配置信息
@@ -30,6 +30,29 @@ gala-spider 配置文件 `/etc/gala-spider/gala-spider.yaml` 配置项说明如�
   - instant_api：单个时间点采集API
   - range_api：区间采集API
   - step：采集时间步长，用于区间采集API
+  
+- aom：华为云对接指标数据库的配置信息
+
+  - base_url：aom服务器地址
+
+  - project_id：aom项目ID
+
+  - auth_type：aom服务器鉴权类型，支持 token 、appcode 两种方式。
+
+  - auth_info：aom服务器鉴权配置信息
+
+    对于 token 鉴权方式，包括如下配置，
+
+    - iam_server：iam服务器
+    - iam_domain：iam域
+    - iam_user_name：iam用户名
+    - iam_password：iam用于密码
+    - ssl_verify：是否开启 SSL 证书验证，默认为 0 表示关闭。
+
+    对于 appcode 鉴权方式，包括如下配置，
+
+    - appcode
+
 
 ### 配置文件示例
 

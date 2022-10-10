@@ -9,7 +9,7 @@ ENV PYTHONPATH "${PYTHONPATH}:./"
 COPY requirements.txt requirements.txt
 COPY spider ./spider/
 COPY cause_inference ./cause_inference/
-COPY config/gala-inference.yaml config/ext-observe-meta.yaml ./config/
+COPY config/gala-inference.yaml config/ext-observe-meta.yaml config/infer-rule.yaml ./config/
 
 COPY ci/gala-inference/entrypoint.sh /
 RUN chmod +x /entrypoint.sh

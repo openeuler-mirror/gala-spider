@@ -12,3 +12,7 @@ class StorageConnectionException(StorageException):
 
 class MetadataException(StorageException):
     pass
+
+
+class ConfigException(SpiderException):
+    pass

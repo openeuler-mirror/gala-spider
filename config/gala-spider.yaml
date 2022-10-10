@@ -8,6 +8,17 @@ prometheus:
     range_api: "/api/v1/query_range"
     step: 1
 
+aom:
+    base_url: ""
+    project_id: ""
+    auth_type: "token"
+    auth_info:
+        iam_server: ""
+        iam_domain: ""
+        iam_user_name: ""
+        iam_password: ""
+        ssl_verify: 0
+
 spider:
     log_conf:
         log_path: "/var/log/gala-spider/spider.log"

@@ -3,7 +3,6 @@ from typing import List
 import requests
 
 from spider.util import logger
-from spider.util.singleton import Singleton
 from spider.collector.data_collector import DataCollector
 from spider.collector.data_collector import DataRecord
 from spider.collector.data_collector import Label
@@ -20,7 +19,32 @@ def generate_query_sql(metric_id: str, query_options: dict = None) -> str:
     return sql
 
 
-class PrometheusCollector(DataCollector, metaclass=Singleton):
+def transfer_prom_instant_data(instant_data: list) -> List[DataRecord]:
+    records = []
+    for item in instant_data:
+        metric = item.get("metric", {})
+        value = item.get("value", [])
+        if not metric or not value:
+            continue
+        labels = [Label(k, v) for k, v in metric.items()]
+        records.append(DataRecord(metric.get('__name__'), value[0], value[1], labels))
+    return records
+
+
+def transfer_prom_range_data(range_data: list) -> List[DataRecord]:
+    records = []
+    for item in range_data:
+        metric = item.get("metric", {})
+        values = item.get("values", [])
+        if not metric or not values:
+            continue
+        labels = [Label(k, v) for k, v in metric.items()]
+        for value in values:
+            records.append(DataRecord(metric.get('__name__'), value[0], value[1], labels))
+    return records
+
+
+class PrometheusCollector(DataCollector):
     def __init__(self, base_url: str = None, instant_api: str = None, range_api: str = None, step: int = None):
         super().__init__()
         self.base_url = base_url
@@ -55,19 +79,17 @@ class PrometheusCollector(DataCollector, metaclass=Singleton):
         url = self.base_url + self.instant_api
         try:
             rsp = requests.get(url, params).json()
-        except requests.RequestException:
-            logger.logger.error("An error happened when requesting {}".format(url))
+        except requests.RequestException as ex:
+            logger.logger.error(ex)
             return data_list
 
         if rsp is not None and rsp.get("status") == "success":
             results = rsp.get("data", {}).get("result", [])
-            for item in results:
-                metric = item.get("metric", {})
-                value = item.get("value", [])
-                if not metric or not value:
-                    continue
-                labels = [Label(k, v) for k, v in metric.items()]
-                data_list.append(DataRecord(metric_id, value[0], value[1], labels))
+            if len(results) == 0:
+                logger.logger.debug("No data collected from prometheus, metric id is: {}".format(metric_id))
+            data_list = transfer_prom_instant_data(results)
+        else:
+            logger.logger.warning("Failed to request {}, error is: {}".format(url, rsp))
         return data_list
 
     def get_range_data(self, metric_id: str, start: float, end: float, **kwargs) -> List[DataRecord]:
@@ -104,18 +126,15 @@ class PrometheusCollector(DataCollector, metaclass=Singleton):
         url = self.base_url + self.range_api
         try:
             rsp = requests.get(url, params).json()
-        except requests.RequestException:
-            logger.logger.error("An error happened when requesting {}".format(url))
+        except requests.RequestException as ex:
+            logger.logger.error(ex)
             return data_list
 
         if rsp is not None and rsp.get("status") == "success":
             results = rsp.get("data", {}).get("result", [])
-            for item in results:
-                metric = item.get("metric", {})
-                values = item.get("values", [])
-                if not metric or not values:
-                    continue
-                labels = [Label(k, v) for k, v in metric.items()]
-                for value in values:
-                    data_list.append(DataRecord(metric_id, value[0], value[1], labels))
+            if len(results) == 0:
+                logger.logger.debug("No data collected from prometheus, metric id is: {}".format(metric_id))
+            data_list = transfer_prom_range_data(results)
+        else:
+            logger.logger.warning("Failed to request {}, error is: {}".format(url, rsp))
         return data_list
