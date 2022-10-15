@@ -30,7 +30,7 @@ class SpiderConfig(metaclass=Singleton):
             'base_url': None,
             'instant_api': None,
             'range_api': None,
-            'step': 1,
+            'step': 5,
         }
 
         self.storage_conf = {
@@ -45,6 +45,7 @@ class SpiderConfig(metaclass=Singleton):
         self.aom_conf = {
             'base_url': '',
             'project_id': '',
+            'step': 5,
             'auth_type': 'appcode',
             'auth_info': {},
         }

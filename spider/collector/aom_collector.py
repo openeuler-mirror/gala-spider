@@ -1,13 +1,11 @@
 import time
 from abc import ABCMeta, abstractmethod
-from typing import List
 
 import requests
 
 from spider.util import logger
 from spider.exceptions import ConfigException
-from .data_collector import DataCollector, DataRecord
-from .prometheus_collector import generate_query_sql, transfer_prom_instant_data, transfer_prom_range_data
+from .prometheus_collector import PrometheusCollector
 
 
 class AomAuth(metaclass=ABCMeta):
@@ -109,72 +107,28 @@ class TokenAuth(AomAuth):
         return True
 
 
-class AomCollector(DataCollector):
-    def __init__(self, aom_server: str, project_id: str, aom_auth: AomAuth):
-        super().__init__()
-        self._base_url = aom_server
+class AomCollector(PrometheusCollector):
+    def __init__(self, aom_server: str, project_id: str, aom_auth: AomAuth, step: int):
         self._project_id = project_id
         self._aom_auth = aom_auth
-        self._step = 5
 
-        self._instant_api = '/v1/{}/aom/api/v1/query'.format(self._project_id)
-        self._range_api = '/v1/{}/aom/api/v1/query_range'.format(self._project_id)
+        instant_api = '/v1/{}/aom/api/v1/query'.format(self._project_id)
+        range_api = '/v1/{}/aom/api/v1/query_range'.format(self._project_id)
+        super().__init__(aom_server, instant_api, range_api, step)
 
-    def get_instant_data(self, metric_id: str, timestamp: float = None, **kwargs) -> List[DataRecord]:
-        data_list = []
-        query_options = kwargs.get("query_options") if "query_options" in kwargs else None
-        params = {
-            "query": generate_query_sql(metric_id, query_options),
-        }
-        if timestamp is not None:
-            params["time"] = timestamp
+    def set_instant_req_info(self, metric_id: str, timestamp: float, **kwargs) -> dict:
+        req_data = super().set_instant_req_info(metric_id, timestamp, **kwargs)
         headers = {}
         self._aom_auth.set_auth_info(headers)
+        req_data.update({'headers': headers})
+        return req_data
 
-        url = self._base_url + self._instant_api
-        try:
-            rsp = requests.get(url, params, headers=headers).json()
-        except requests.RequestException as ex:
-            logger.logger.error(ex)
-            return data_list
-
-        if rsp is not None and rsp.get("status") == "success":
-            results = rsp.get("data", {}).get("result", [])
-            if len(results) == 0:
-                logger.logger.debug("No data collected from aom, metric id is: {}".format(metric_id))
-            data_list = transfer_prom_instant_data(results)
-        else:
-            logger.logger.warning("Failed to request {}, error is: {}".format(url, rsp))
-        return data_list
-
-    def get_range_data(self, metric_id: str, start: float, end: float, **kwargs) -> List[DataRecord]:
-        data_list = []
-        query_options = kwargs.get("query_options") if "query_options" in kwargs else None
-        step = kwargs.get("step") if "step" in kwargs else self._step
-        params = {
-            "query": generate_query_sql(metric_id, query_options),
-            "start": start,
-            "end": end,
-            "step": step
-        }
+    def set_range_req_info(self, metric_id: str, start: float, end: float, **kwargs) -> dict:
+        req_data = super().set_range_req_info(metric_id, start, end, **kwargs)
         headers = {}
         self._aom_auth.set_auth_info(headers)
-
-        url = self._base_url + self._range_api
-        try:
-            rsp = requests.get(url, params, headers=headers).json()
-        except requests.RequestException as ex:
-            logger.logger.error(ex)
-            return data_list
-
-        if rsp is not None and rsp.get("status") == "success":
-            results = rsp.get("data", {}).get("result", [])
-            if len(results) == 0:
-                logger.logger.debug("No data collected from aom, metric id is: {}".format(metric_id))
-            data_list = transfer_prom_range_data(results)
-        else:
-            logger.logger.warning("Failed to request {}, error is: {}".format(url, rsp))
-        return data_list
+        req_data.update({'headers': headers})
+        return req_data
 
 
 def create_aom_auth(auth_type: str, auth_info: dict) -> AomAuth:
@@ -193,4 +147,4 @@ def create_aom_auth(auth_type: str, auth_info: dict) -> AomAuth:
 
 def create_aom_collector(aom_conf: dict) -> AomCollector:
     aom_auth = create_aom_auth(aom_conf.get('auth_type'), aom_conf.get('auth_info'))
-    return AomCollector(aom_conf.get('base_url'), aom_conf.get('project_id'), aom_auth)
+    return AomCollector(aom_conf.get('base_url'), aom_conf.get('project_id'), aom_auth, aom_conf.get('step'))
