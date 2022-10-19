@@ -4,6 +4,7 @@ import threading
 import json
 
 from kafka import KafkaConsumer
+from kafka.errors import KafkaError
 
 from spider.conf import SpiderConfig
 from spider.conf import init_spider_config
@@ -17,6 +18,7 @@ from spider.service import StorageService
 from spider.service import DataCollectionService
 from spider.service import CalculationService
 from spider.exceptions import StorageException
+from spider.exceptions import SpiderException
 
 SPIDER_CONFIG_PATH = '/etc/gala-spider/gala-spider.yaml'
 TOPO_RELATION_PATH = '/etc/gala-spider/topo-relation.yaml'
@@ -34,11 +36,14 @@ class ObsvMetaCollThread(threading.Thread):
         )
 
     def run(self):
-        for msg in self.metadata_consumer:
-            data = json.loads(msg.value)
-            metadata = {}
-            metadata.update(data)
-            self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
+        try:
+            for msg in self.metadata_consumer:
+                data = json.loads(msg.value)
+                metadata = {}
+                metadata.update(data)
+                self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
+        except KafkaError as ex:
+            logger.logger.error('An error happened while consuming metadata topic, error is: {}'.format(ex))
 
 
 def main():
@@ -59,9 +64,10 @@ def main():
     # 初始化相关的服务
     # 初始化数据采集服务
     data_source = spider_config.db_agent
-    data_processor = DataProcessorFactory.get_instance(data_source)
-    if data_processor is None:
-        logger.logger.error("Unknown data source:{}, please check!".format(data_source))
+    try:
+        data_processor = DataProcessorFactory.get_instance(data_source)
+    except SpiderException as ex:
+        logger.logger.error(ex)
         return
     collect_srv = DataCollectionService(data_processor)
     # 初始化关系计算服务
@@ -82,6 +88,7 @@ def main():
         time.sleep(storage_period)
 
         cur_ts_sec = int(time.time())
+        logger.logger.info('Start collecting observe entities, current time is: {}'.format(cur_ts_sec))
         observe_entities = collect_srv.get_observe_entities(cur_ts_sec)
         if len(observe_entities) == 0:
             logger.logger.debug('No observe entities collected.')

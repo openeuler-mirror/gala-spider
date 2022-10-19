@@ -9,8 +9,7 @@ from spider.entity_mgt import ObserveEntity
 from spider.entity_mgt import ObserveEntityCreator
 from spider.collector.data_collector import DataRecord
 from spider.collector.data_collector import Label
-from spider.collector.prometheus_collector import PrometheusCollector
-from spider.conf import SpiderConfig
+from spider.collector import DataCollector
 from spider.util import logger
 
 
@@ -36,6 +35,17 @@ def _id_of_keys(keys: Dict[str, str], entity_keys: List[str]) -> (bool, tuple):
 
 
 class PrometheusProcessor(DataProcessor):
+    def __init__(self, collector: DataCollector):
+        self.collector = collector
+
+    @staticmethod
+    def _get_metric_id(entity_type: str, metric_name: str):
+        return "{}_{}_{}".format(ObserveMetaMgt().data_agent, entity_type, metric_name)
+
+    @staticmethod
+    def _get_metric_name(metric_id: str, entity_name: str) -> str:
+        start = len("{}_{}_".format(ObserveMetaMgt().data_agent, entity_name))
+        return metric_id[start:len(metric_id)]
 
     def collect_observe_entity(self, observe_meta: ObserveMeta, timestamp: float = None) -> List[DataRecord]:
         """
@@ -61,7 +71,7 @@ class PrometheusProcessor(DataProcessor):
         timestamp = time.time() if timestamp is None else timestamp
         for metric in observe_meta.metrics:
             metric_id = self._get_metric_id(observe_meta.type, metric)
-            data = PrometheusCollector(**SpiderConfig().prometheus_conf).get_instant_data(metric_id, timestamp)
+            data = self.collector.get_instant_data(metric_id, timestamp)
             if len(data) > 0:
                 res.extend(data)
         return res
@@ -94,6 +104,7 @@ class PrometheusProcessor(DataProcessor):
         timestamp = time.time() if timestamp is None else timestamp
         obsv_meta_mgt = ObserveMetaMgt()
         types = list(obsv_meta_mgt.observe_meta_map.keys())
+        logger.logger.debug("Current supported observe types are: {}".format(types))
         for type_ in types:
             data = self.collect_observe_entity(obsv_meta_mgt.get_observe_meta(type_), timestamp)
             if len(data) > 0:
@@ -184,10 +195,3 @@ class PrometheusProcessor(DataProcessor):
         res.extend(logical_entities)
 
         return res
-
-    def _get_metric_id(self, entity_type: str, metric_name: str):
-        return "{}_{}_{}".format(ObserveMetaMgt().data_agent, entity_type, metric_name)
-
-    def _get_metric_name(self, metric_id: str, entity_name: str) -> str:
-        start = len("{}_{}_".format(ObserveMetaMgt().data_agent, entity_name))
-        return metric_id[start:len(metric_id)]

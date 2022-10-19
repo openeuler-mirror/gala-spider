@@ -30,7 +30,7 @@ class SpiderConfig(metaclass=Singleton):
             'base_url': None,
             'instant_api': None,
             'range_api': None,
-            'step': 1,
+            'step': 5,
         }
 
         self.storage_conf = {
@@ -40,6 +40,14 @@ class SpiderConfig(metaclass=Singleton):
                 'url': None,
                 'db_name': None,
             }
+        }
+
+        self.aom_conf = {
+            'base_url': '',
+            'project_id': '',
+            'step': 5,
+            'auth_type': 'appcode',
+            'auth_info': {},
         }
 
     def load_from_yaml(self, conf_path: str) -> bool:
@@ -63,6 +71,13 @@ class SpiderConfig(metaclass=Singleton):
         self.prometheus_conf.update(result.get('prometheus', {}))
 
         self.storage_conf.update(result.get('storage', {}))
+
+        self.aom_conf.update(result.get('aom', {}))
+        auth_info = self.aom_conf.get('auth_info', {})
+        ssl_verify = True
+        if auth_info.get('ssl_verify', 0) == 0:
+            ssl_verify = False
+        auth_info.update({'ssl_verify': ssl_verify})
 
         return True
 

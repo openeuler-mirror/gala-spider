@@ -3,10 +3,7 @@ from typing import List
 import requests
 
 from spider.util import logger
-from spider.util.singleton import Singleton
-from spider.collector.data_collector import DataCollector
-from spider.collector.data_collector import DataRecord
-from spider.collector.data_collector import Label
+from .data_collector import DataCollector, DataRecord, Label
 
 
 def generate_query_sql(metric_id: str, query_options: dict = None) -> str:
@@ -20,102 +17,111 @@ def generate_query_sql(metric_id: str, query_options: dict = None) -> str:
     return sql
 
 
-class PrometheusCollector(DataCollector, metaclass=Singleton):
+class PrometheusCollector(DataCollector):
     def __init__(self, base_url: str = None, instant_api: str = None, range_api: str = None, step: int = None):
         super().__init__()
-        self.base_url = base_url
-        self.instant_api = instant_api
-        self.range_api = range_api
-        self.step = step
+        self._base_url = base_url
+        self._instant_api = instant_api
+        self._range_api = range_api
+        self._step = step
 
-    def get_instant_data(self, metric_id: str, timestamp: float = None, **kwargs) -> List[DataRecord]:
-        """
-        从 Prometheus 获取指定时间戳的指标数据。
-        例：
-        输入：metric_id = "gala_gopher_task_fork_count", timestamp = 0
-        输出：res = [
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=0, metric_value=1,
-                            labels=[Label(name="machine_id", value="machine1")]),
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=0, metric_value=2,
-                            labels=[Label(name="machine_id", value="machine2")]),
-             ]
-        @param metric_id: 指标的ID
-        @param timestamp: 查询指定时间戳的数据
-        @param kwargs: 查询条件可选项
-        @return: 指定时间戳的指标数据的 DataRecord 列表。
-        """
-        data_list = []
-        query_options = kwargs.get("query_options") if "query_options" in kwargs else None
+    @staticmethod
+    def set_instant_query_params(metric_id: str, query_options: dict, timestamp: float) -> dict:
         params = {
             "query": generate_query_sql(metric_id, query_options),
         }
         if timestamp is not None:
             params["time"] = timestamp
+        return params
 
-        url = self.base_url + self.instant_api
-        try:
-            rsp = requests.get(url, params).json()
-        except requests.RequestException:
-            logger.logger.error("An error happened when requesting {}".format(url))
-            return data_list
-
-        if rsp is not None and rsp.get("status") == "success":
-            results = rsp.get("data", {}).get("result", [])
-            for item in results:
-                metric = item.get("metric", {})
-                value = item.get("value", [])
-                if not metric or not value:
-                    continue
-                labels = [Label(k, v) for k, v in metric.items()]
-                data_list.append(DataRecord(metric_id, value[0], value[1], labels))
-        return data_list
-
-    def get_range_data(self, metric_id: str, start: float, end: float, **kwargs) -> List[DataRecord]:
-        """
-        从 Prometheus 获取指定时间范围 [start, end] 的指标数据。
-        例：
-        输入：metric_id = "gala_gopher_task_fork_count", start = 0, end = 1
-        输出：res = [
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=0, metric_value=1,
-                            labels=[Label(name="machine_id", value="machine1")]),
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=1, metric_value=2,
-                            labels=[Label(name="machine_id", value="machine1")]),
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=0, metric_value=1,
-                            labels=[Label(name="machine_id", value="machine2")]),
-                 DataRecord(metric_id="gala_gopher_task_fork_count", timestamp=1, metric_value=2,
-                            labels=[Label(name="machine_id", value="machine2")]),
-             ]
-        @param metric_id: 指标的ID
-        @param start: 起始时间戳（包含）
-        @param end: 结束时间戳（包含）
-        @param kwargs: 查询条件可选项
-        @return: 指定时间范围 [start, end] 的指标数据
-        """
-        data_list = []
-        query_options = kwargs.get("query_options") if "query_options" in kwargs else None
-        step = kwargs.get("step") if "step" in kwargs else self.step
+    @staticmethod
+    def set_range_query_params(metric_id: str, start: float, end: float, step: int, query_options: dict) -> dict:
         params = {
             "query": generate_query_sql(metric_id, query_options),
             "start": start,
             "end": end,
             "step": step
         }
+        return params
 
-        url = self.base_url + self.range_api
+    @staticmethod
+    def query(req_data: dict) -> list:
+        url = req_data.get('url')
+        params = req_data.get('params')
+        headers = req_data.get('headers')
+
         try:
-            rsp = requests.get(url, params).json()
-        except requests.RequestException:
-            logger.logger.error("An error happened when requesting {}".format(url))
-            return data_list
+            resp = requests.get(url, params, headers=headers).json()
+        except requests.RequestException as ex:
+            logger.logger.error(ex)
+            return []
 
-        if rsp is not None and rsp.get("status") == "success":
-            results = rsp.get("data", {}).get("result", [])
-            for item in results:
-                metric = item.get("metric", {})
-                values = item.get("values", [])
-                if not metric or not values:
-                    continue
-                labels = [Label(k, v) for k, v in metric.items()]
-                for value in values:
-                    data_list.append(DataRecord(metric_id, value[0], value[1], labels))
-        return data_list
+        result = []
+        if resp is not None and resp.get('status') == 'success':
+            result = resp.get('data', {}).get('result', [])
+        else:
+            logger.logger.warning("Failed to request {}, error is: {}".format(url, resp))
+        return result
+
+    @staticmethod
+    def transfer_instant_data(instant_data: list) -> List[DataRecord]:
+        records = []
+        for item in instant_data:
+            metric = item.get("metric", {})
+            value = item.get("value", [])
+            if not metric or not value:
+                continue
+            labels = [Label(k, v) for k, v in metric.items()]
+            records.append(DataRecord(metric.get('__name__'), value[0], value[1], labels))
+        return records
+
+    @staticmethod
+    def transfer_range_data(range_data: list) -> List[DataRecord]:
+        records = []
+        for item in range_data:
+            metric = item.get("metric", {})
+            values = item.get("values", [])
+            if not metric or not values:
+                continue
+            labels = [Label(k, v) for k, v in metric.items()]
+            for value in values:
+                records.append(DataRecord(metric.get('__name__'), value[0], value[1], labels))
+        return records
+
+    def get_instant_data(self, metric_id: str, timestamp: float = None, **kwargs) -> List[DataRecord]:
+        req_data = self.set_instant_req_info(metric_id, timestamp, **kwargs)
+        data = self.query(req_data)
+        if len(data) == 0:
+            logger.logger.debug("No data collected, metric id is: {}".format(metric_id))
+        return self.transfer_instant_data(data)
+
+    def get_range_data(self, metric_id: str, start: float, end: float, **kwargs) -> List[DataRecord]:
+        req_data = self.set_range_req_info(metric_id, start, end, **kwargs)
+        data = self.query(req_data)
+        if len(data) == 0:
+            logger.logger.debug("No data collected, metric id is: {}".format(metric_id))
+        return self.transfer_range_data(data)
+
+    def set_instant_req_info(self, metric_id: str, timestamp: float, **kwargs) -> dict:
+        req_data = {'url': self._base_url + self._instant_api}
+        query_options = kwargs.get("query_options")
+        params = self.set_instant_query_params(metric_id, query_options, timestamp)
+        req_data.update({'params': params})
+        return req_data
+
+    def set_range_req_info(self, metric_id: str, start: float, end: float, **kwargs) -> dict:
+        req_data = {'url': self._base_url + self._range_api}
+        query_options = kwargs.get("query_options")
+        step = kwargs.get("step") if "step" in kwargs else self._step
+        params = self.set_range_query_params(metric_id, start, end, step, query_options)
+        req_data.update({'params': params})
+        return req_data
+
+
+def create_prom_collector(prom_conf: dict) -> PrometheusCollector:
+    return PrometheusCollector(
+        base_url=prom_conf.get('base_url'),
+        instant_api=prom_conf.get('instant_api'),
+        range_api=prom_conf.get('range_api'),
+        step=prom_conf.get('step')
+    )
