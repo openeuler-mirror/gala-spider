@@ -6,6 +6,7 @@ inference:
   infer_policy: "dfs"
   # 单位： 秒
   sample_duration: 600
+  sys_evt_on: 0
   # 根因定位时，有效的异常指标事件周期，单位：秒
   evt_valid_duration: 120
   # 异常指标事件的老化周期，单位：秒

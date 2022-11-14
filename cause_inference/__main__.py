@@ -208,7 +208,11 @@ def main():
     kpi_consumer = init_kpi_consumer()
     infer_kafka_conf = infer_config.kafka_conf.get('inference_topic')
     cause_producer = init_cause_producer()
-    abn_metric_evt_mgt = init_abn_metric_evt_mgt()
+
+    sys_evt_on = infer_config.infer_conf.get('sys_evt_on')
+    abn_metric_evt_mgt = None
+    if sys_evt_on:
+        abn_metric_evt_mgt = init_abn_metric_evt_mgt()
 
     obsv_meta_coll_thread = init_obsv_meta_coll_thd()
     obsv_meta_coll_thread.start()
@@ -228,10 +232,11 @@ def main():
 
         metric_evts = get_recommend_metric_evts(data)
 
-        abn_metric_evt_mgt.consume_evt(abn_kpi.timestamp)
-        abn_metric_evt_mgt.clear_aging_evts(abn_kpi.timestamp)
-        abn_metric_evts = abn_metric_evt_mgt.filter_valid_evts(abn_kpi.timestamp)
-        metric_evts.extend(abn_metric_evts)
+        if sys_evt_on:
+            abn_metric_evt_mgt.consume_evt(abn_kpi.timestamp)
+            abn_metric_evt_mgt.clear_aging_evts(abn_kpi.timestamp)
+            abn_metric_evts = abn_metric_evt_mgt.filter_valid_evts(abn_kpi.timestamp)
+            metric_evts.extend(abn_metric_evts)
 
         logger.logger.debug('abnormal kpi is: {}'.format(abn_kpi))
         logger.logger.debug('abnormal metrics are: {}'.format(metric_evts))

@@ -15,6 +15,7 @@ class InferConfig:
             'root_topk': 3,
             'infer_policy': 'dfs',
             'sample_duration': 600,
+            'sys_evt_on': False,
             'evt_valid_duration': 120,
             'evt_aging_duration': 600,
         }
@@ -73,6 +74,11 @@ class InferConfig:
         prometheus_conf = result.get('prometheus', {})
 
         self.infer_conf.update(infer_conf)
+        sys_evt_on = False
+        if infer_conf.get('sys_evt_on', 0) == 1:
+            sys_evt_on = True
+        self.infer_conf.update({'sys_evt_on': sys_evt_on})
+
         self.kafka_conf.update(kafka_conf)
         self.arango_conf.update(arango_conf)
         self.log_conf.update(log_conf)
