@@ -124,6 +124,11 @@ class DirectRelationCreator:
             if sub_entity.attrs.get(conflict.from_) == obj_entity.attrs.get(conflict.to):
                 return None
 
+        for like in relation_meta.likes:
+            entity = sub_entity if RelationSideType.FROM.value == like.side else obj_entity
+            if like.label not in entity.attrs or like.value not in entity.attrs.get(like.label):
+                return None
+
         relation = Relation(relation_meta.id, relation_meta.layer, sub_entity, obj_entity)
         return relation
 

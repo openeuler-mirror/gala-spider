@@ -8,6 +8,45 @@ topo_relations:
         toTypes:
           -
             type: host
+      -
+        id: runs_on
+        layer: direct
+        toTypes:
+          -
+            type: proc
+            matches:
+              -
+                from: machine_id
+                to: uuid
+            requires:
+              -
+                side: from
+                label: host_type
+                value: vm
+              -
+                side: to
+                label: comm
+                value: qemu-kvm
+      -
+        id: has_vhost
+        layer: direct
+        toTypes:
+          -
+            type: proc
+            matches:
+              -
+                from: machine_id
+                to: uuid
+            requires:
+              -
+                side: from
+                label: host_type
+                value: vm
+            likes:
+              -
+                side: to
+                label: comm
+                value: vhost
   -
     type: container
     dependingitems:
@@ -77,6 +116,26 @@ topo_relations:
         toTypes:
           -
             type: proc
+      -
+        id: has_vhost
+        layer: direct
+        toTypes:
+          -
+            type: proc
+            matches:
+              -
+                from: uuid
+                to: uuid
+            requires:
+              -
+                side: from
+                label: comm
+                value: qemu-kvm
+            likes:
+              -
+                side: to
+                label: comm
+                value: vhost
   -
     type: thread
     dependingitems:

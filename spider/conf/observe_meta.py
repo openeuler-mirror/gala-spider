@@ -49,6 +49,8 @@ class RelationType(ValueCheckEnum):
     IS_CLIENT = 'is_client'
     IS_PEER = 'is_peer'
     CONNECT = 'connect'
+    HAS_VHOST = 'has_vhost'
+    STORE_IN = 'store_in'
 
 
 class RelationLayerType(ValueCheckEnum):
@@ -113,6 +115,12 @@ class ConflictMeta:
     from_: str
     to: str
 
+@dataclass
+class LikeMeta:
+    side: str
+    label: str
+    value: str
+
 
 @dataclass(unsafe_hash=True)
 class RelationMeta:
@@ -127,6 +135,7 @@ class DirectRelationMeta(RelationMeta):
     matches: List[MatchMeta] = field(compare=False)
     requires: List[RequireMeta] = field(default_factory=list, compare=False)
     conflicts: List[ConflictMeta] = field(default_factory=list, compare=False)
+    likes: List[LikeMeta] = field(default_factory=list, compare=False)
 
 
 @dataclass(unsafe_hash=True)
@@ -590,10 +599,12 @@ class ObserveMetaMgt(metaclass=Singleton):
                 matches = to_type.get("matches", [])
                 requires = to_type.get("requires", [])
                 conflicts = to_type.get("conflicts", [])
+                likes = to_type.get("likes", [])
 
                 match_objs = []
                 require_objs = []
                 conflict_objs = []
+                like_objs = []
                 for match in matches:
                     match_objs.append(MatchMeta(from_=match.get("from"), to=match.get("to")))
                 for require in requires:
@@ -602,9 +613,14 @@ class ObserveMetaMgt(metaclass=Singleton):
                 for conflict in conflicts:
                     conflict_objs.append(ConflictMeta(from_=conflict.get("from"), to=conflict.get("to")))
 
+                for like in likes:
+                    like_objs.append(LikeMeta(side=like.get("side"), label=like.get("label"),
+                                            value=like.get("value")))
+
                 relation_meta = DirectRelationMeta(id=id_, layer=layer, from_type=subject_type,
                                                    to_type=object_type, matches=match_objs,
-                                                   requires=require_objs, conflicts=conflict_objs)
+                                                   requires=require_objs, conflicts=conflict_objs,
+                                                   likes=like_objs)
             elif layer == RelationLayerType.INDIRECT.value:
                 relation_meta = IndirectRelationMeta(id=id_, layer=layer, from_type=subject_type,
                                                      to_type=object_type)
