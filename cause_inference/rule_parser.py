@@ -1,7 +1,7 @@
 import os
 from abc import ABCMeta
 from abc import abstractmethod
-from typing import List
+from typing import List, Dict, Tuple
 
 import yaml
 
@@ -9,33 +9,86 @@ from spider.conf.observe_meta import RelationType
 from spider.conf.observe_meta import EntityType
 from spider.util import logger
 
+METRIC_CATEGORY_ALL = 'ALL'
+METRIC_CATEGORY_OTHER = 'OTHER'
+METRIC_CATEGORY_VIRTUAL = 'VIRTUAL'
+METRIC_ID_OF_CATEGORY_VIRTUAL = 'virtual_metric'
 
-class MetricPairSet:
-    def __init__(self, from_: set, to_: set):
+
+def is_virtual_metric(metric_id: str) -> bool:
+    return metric_id == METRIC_ID_OF_CATEGORY_VIRTUAL
+
+
+class MetricCategoryPair:
+    def __init__(self, from_: str, to_: str):
         self.from_ = from_
         self.to_ = to_
 
-    def check_metric_pair(self, from_metric_id: str, to_metric_id: str) -> bool:
-        if self.from_ and from_metric_id not in self.from_:
-            return False
-        if self.to_ and to_metric_id not in self.to_:
-            return False
-        return True
-
 
 class RuleMeta:
-    def __init__(self, from_type, to_type, metric_range=None):
+    def __init__(self, from_type, to_type, from_categories=None, to_categories=None, metric_range=None):
         self.from_type = from_type
         self.to_type = to_type
-        self.metric_range: List[MetricPairSet] = metric_range or []
+        self.from_categories = from_categories or {}
+        self.to_categories = to_categories or {}
+        self.category_pairs: List[MetricCategoryPair] = metric_range or []
 
-    def check_metric_pair(self, from_metric_id: str, to_metric_id: str) -> bool:
-        if not self.metric_range:
-            return True
-        for item in self.metric_range:
-            if item.check_metric_pair(from_metric_id, to_metric_id):
-                return True
-        return False
+    @staticmethod
+    def aggregate_metric_from_groups(category_type, metric_groups) -> List[list]:
+        res = []
+        if category_type == METRIC_CATEGORY_ALL:
+            for cate_type, metric_group in metric_groups.items():
+                if cate_type == METRIC_CATEGORY_VIRTUAL:
+                    continue
+                elif cate_type == METRIC_CATEGORY_OTHER:
+                    res.extend([metric] for metric in metric_group)
+                else:
+                    res.append(metric_group)
+        else:
+            metric_group = metric_groups.get(category_type)
+            if metric_group:
+                res.append(metric_group)
+
+        return res
+
+    @staticmethod
+    def _group_metric_by_category(metrics, categories) -> Dict[str, list]:
+        parts = {}
+        parted_metrics = set()
+        for cate_type, cate_metrics in categories.items():
+            part = []
+            for metric in metrics:
+                if metric in cate_metrics:
+                    part.append(metric)
+                    parted_metrics.add(metric)
+            if len(part) > 0:
+                parts.setdefault(cate_type, part)
+
+        other_part = []
+        for metric in metrics:
+            if metric not in parted_metrics:
+                other_part.append(metric)
+        if len(other_part) > 0:
+            parts.setdefault(METRIC_CATEGORY_OTHER, other_part)
+
+        virtual_part = [METRIC_ID_OF_CATEGORY_VIRTUAL]
+        parts.setdefault(METRIC_CATEGORY_VIRTUAL, virtual_part)
+
+        return parts
+
+    def get_avail_causal_relations(self, real_from_metrics, real_to_metrics) -> List[Tuple[list, list]]:
+        causal_relations = []
+
+        from_groups = self._group_metric_by_category(real_from_metrics, self.from_categories)
+        to_groups = self._group_metric_by_category(real_to_metrics, self.to_categories)
+        for cate_pair in self.category_pairs:
+            all_from_metrics = self.aggregate_metric_from_groups(cate_pair.from_, from_groups)
+            all_to_metrics = self.aggregate_metric_from_groups(cate_pair.to_, to_groups)
+            for from_metrics in all_from_metrics:
+                for to_metrics in all_to_metrics:
+                    causal_relations.append((from_metrics, to_metrics))
+
+        return causal_relations
 
 
 class Rule(metaclass=ABCMeta):
@@ -180,7 +233,8 @@ class NicRule1(Rule):
 class RuleEngine:
     def __init__(self):
         self.rules: List[Rule] = []
-        self.rule_metas = {}
+        self.metric_categories = {}
+        self.rule_metas: Dict[tuple, RuleMeta] = {}
 
     def add_rule(self, rule: Rule):
         self.rules.append(rule)
@@ -190,33 +244,58 @@ class RuleEngine:
             rule.rule_parsing(causal_graph)
 
     def load_rule_meta_from_yaml(self, rule_path: str) -> bool:
-        abs_rule_path = os.path.abspath(rule_path)
-        if not os.path.exists(abs_rule_path):
-            logger.logger.warning("Rule meta path '{}' not exist", abs_rule_path)
-            return True
         try:
-            with open(abs_rule_path, 'r') as file:
+            with open(os.path.abspath(rule_path), 'r') as file:
                 data = yaml.safe_load(file)
         except IOError as ex:
             logger.logger.warning(ex)
             return False
 
-        infer_rules = data.get("infer_rules", [])
-        for rule_meta in infer_rules:
-            saved_metric_range = []
-            for item in rule_meta.get("metric_range", []):
-                saved_metric_range.append(MetricPairSet(set(item.get('from', [])), set(item.get('to', []))))
-            saved_rule_meta = RuleMeta(rule_meta.get('from_type'), rule_meta.get('to_type'), saved_metric_range)
-            self.rule_metas.setdefault((rule_meta.get("from_type"), rule_meta.get("to_type")), saved_rule_meta)
-
+        self.load_rule_meta_from_dict(data)
         return True
+
+    def create_default_rule_meta(self, from_type, to_type):
+        return RuleMeta(
+            from_type,
+            to_type,
+            self.metric_categories.get(from_type),
+            self.metric_categories.get(to_type),
+            [MetricCategoryPair(METRIC_CATEGORY_ALL, METRIC_CATEGORY_ALL)]
+        )
 
     def add_rule_meta(self, causal_graph):
         entity_cause_graph = causal_graph.entity_cause_graph
         for edge in entity_cause_graph.edges:
             from_type = entity_cause_graph.nodes[edge[0]].get('type')
             to_type = entity_cause_graph.nodes[edge[1]].get('type')
-            entity_cause_graph.edges[edge]["rule_meta"] = self.rule_metas.get((from_type, to_type))
+            rule_meta = self.rule_metas.get((from_type, to_type))
+            if not rule_meta:
+                rule_meta = self.create_default_rule_meta(from_type, to_type)
+            entity_cause_graph.edges[edge]["rule_meta"] = rule_meta
+
+    def load_rule_meta_from_dict(self, data: dict):
+        self.load_metric_categories(data.get('metric_categories', {}))
+        self.load_infer_rules(data.get("infer_rules", []))
+
+    def load_metric_categories(self, metric_categories: dict):
+        for entity_type, categories in metric_categories.items():
+            category_dict = {}
+            for category in categories:
+                category_dict.setdefault(category.get('category'), category.get('metrics'))
+            self.metric_categories.setdefault(entity_type, category_dict)
+
+    def load_infer_rules(self, infer_rules: list):
+        for rule_meta in infer_rules:
+            from_entity_type = rule_meta.get('from_type')
+            to_entity_type = rule_meta.get('to_type')
+            saved_metric_range = []
+            for item in rule_meta.get("metric_range", []):
+                from_category = item.get('from')
+                to_category = item.get('to')
+                saved_metric_range.append(MetricCategoryPair(from_category, to_category))
+            saved_rule_meta = RuleMeta(from_entity_type, to_entity_type, self.metric_categories.get(from_entity_type),
+                                       self.metric_categories.get(to_entity_type), saved_metric_range)
+            self.rule_metas.setdefault((from_entity_type, to_entity_type), saved_rule_meta)
 
 
 rule_engine = RuleEngine()
