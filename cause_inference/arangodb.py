@@ -22,6 +22,14 @@ def connect_to_arangodb(arango_url, db_name):
     return conn.databases[db_name]
 
 
+def query_all(db, aql_query, bind_vars=None, raw_results=True):
+    res = []
+    query_hdl = db.AQLQuery(aql_query, bindVars=bind_vars, rawResults=raw_results)
+    for item in query_hdl:
+        res.append(item)
+    return res
+
+
 def query_recent_topo_ts(db: Database, ts):
     bind_vars = {'@collection': _TIMESTAMP_COLL_NAME, 'ts': ts}
     aql_query = '''
@@ -32,12 +40,12 @@ def query_recent_topo_ts(db: Database, ts):
       RETURN t._key
     '''
     try:
-        query_res = db.AQLQuery(aql_query, bindVars=bind_vars, rawResults=True).response
+        query_res = query_all(db, aql_query, bind_vars)
     except AQLQueryError as ex:
         raise DBException(ex) from ex
-    if query_res.get('error') or not query_res.get('result'):
+    if len(query_res) == 0:
         raise DBException('Can not find topological graph at the abnormal timestamp {}'.format(ts))
-    last_ts = query_res.get('result')[0]
+    last_ts = query_res[0]
     return int(last_ts)
 
 
@@ -56,12 +64,12 @@ def query_topo_entities(db: Database, ts, query_options=None):
       return v
     '''.format(filter_str)
     try:
-        query_res = db.AQLQuery(aql_query, bindVars=bind_vars, rawResults=True).response
+        query_res = query_all(db, aql_query, bind_vars)
     except AQLQueryError as ex:
         raise DBException(ex) from ex
-    if query_res.get('error') or not query_res.get('result'):
+    if len(query_res) == 0:
         raise DBException('Can not find observe entities satisfied.')
-    return query_res.get('result')
+    return query_res
 
 
 def query_subgraph(db, ts, start_node_id, edge_collection, depth=1):
@@ -83,12 +91,12 @@ def query_subgraph(db, ts, start_node_id, edge_collection, depth=1):
       return {{"vertex": v, "edge": e}}
     '''.format(edge_coll_str)
     try:
-        query_res = db.AQLQuery(aql_query, bindVars=bind_vars, rawResults=True).response
+        query_res = query_all(db, aql_query, bind_vars)
     except AQLQueryError as ex:
         raise DBException(ex) from ex
     vertices = {}
     edges = {}
-    for item in query_res.get('result'):
+    for item in query_res:
         vertex = item.get('vertex')
         edge = item.get('edge')
         vertices.setdefault(vertex.get('_id'), vertex)

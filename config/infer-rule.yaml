@@ -1,32 +1,98 @@
+metric_categories:
+  proc:
+    -
+      category: PROC_CPU
+      metrics:
+        - gala_gopher_proc_utime_jiffies
+        - gala_gopher_proc_stime_jiffies
+    -
+      category: PROC_IO_LOAD
+      metrics:
+        - gala_gopher_proc_read_bytes
+        - gala_gopher_proc_write_bytes
+        - gala_gopher_proc_less_4k_io_read
+        - gala_gopher_proc_less_4k_io_write
+        - gala_gopher_proc_greater_4k_io_read
+        - gala_gopher_proc_greater_4k_io_write
+  disk:
+    -
+      category: DISK_LOAD
+      metrics:
+        - gala_gopher_disk_rspeed_kB
+        - gala_gopher_disk_wspeed_kB
+        - gala_gopher_disk_rspeed
+        - gala_gopher_disk_wspeed
+    -
+      category: DISK_DELAY
+      metrics:
+        - gala_gopher_disk_r_await
+        - gala_gopher_disk_w_await
+        - gala_gopher_disk_rareq
+        - gala_gopher_disk_wareq
+  block:
+    -
+      category: BLOCK_DELAY
+      metrics:
+        - gala_gopher_block_latency_req_max
+        - gala_gopher_block_latency_req_last
+        - gala_gopher_block_latency_req_sum
+        - gala_gopher_block_latency_req_jitter
+  nic:
+    -
+      category: NIC_DROP
+      metrics:
+        - gala_gopher_nic_tc_sent_drop
+        - gala_gopher_nic_tx_dropped
+        - gala_gopher_nic_rx_dropped
+  cpu:
+    -
+      category: CPU_TOTAL
+      metrics:
+        - gala_gopher_cpu_total_used_per
+
 infer_rules:
   -
     from_type: cpu
     to_type: proc
     metric_range:
       -
-        from: []
-        to:
-          - gala_gopher_proc_utime_jiffies
-          - gala_gopher_proc_stime_jiffies
+        from: CPU_TOTAL
+        to: PROC_CPU
   -
     from_type: block
     to_type: proc
     metric_range:
       -
-        from: []
-        to:
-          - gala_gopher_proc_ns_ext4_read
-          - gala_gopher_proc_ns_ext4_write
-          - gala_gopher_proc_ns_ext4_flush
-          - gala_gopher_proc_ns_overlay_read
-          - gala_gopher_proc_ns_overlay_write
-          - gala_gopher_proc_ns_overlay_flush
+        from: BLOCK_DELAY
+        to: VIRTUAL
   -
     from_type: proc
     to_type: disk
     metric_range:
       -
-        from:
-          - gala_gopher_proc_read_bytes
-          - gala_gopher_proc_write_bytes
-        to: []
+        from: PROC_IO_LOAD
+        to: ALL
+  -
+    from_type: disk
+    to_type: block
+    metric_range:
+      -
+        from: DISK_DELAY
+        to: BLOCK_DELAY
+  -
+    from_type: proc
+    to_type: sli
+    metric_range:
+      -
+        from: VIRTUAL
+        to: ALL
+      -
+        from: PROC_CPU
+        to: ALL
+  -
+    from_type: tcp_link
+    to_type: proc
+    metric_range:
+      -
+        from: ALL
+        to: VIRTUAL

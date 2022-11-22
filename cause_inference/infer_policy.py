@@ -5,9 +5,10 @@ from typing import List
 
 import networkx as nx
 
-from cause_inference.cause_infer import CausalGraph
-from cause_inference.cause_infer import Cause
+from cause_inference.model import CausalGraph
+from cause_inference.model import Cause
 from cause_inference.exceptions import InferenceException
+from cause_inference import rule_parser
 
 
 class InferPolicy(ABC):
@@ -114,22 +115,28 @@ class DfsPolicy(InferPolicy):
         if length < 1:
             return 0.0
         total_score = 0.0
+        num_of_valid_node = 0
         for node in path[:length]:
+            if is_virtual_node(node):
+                continue
             total_score += cause_graph.nodes[node].get('abnormal_score', 0)
-        if length != 0:
-            total_score /= length
+            num_of_valid_node += 1
+        if num_of_valid_node != 0:
+            total_score /= num_of_valid_node
         return total_score
 
-    def infer(self, causal_graph: CausalGraph, top_k: int) -> List[Cause]:
-        cause_graph = causal_graph.metric_cause_graph
-        abn_node_id = (causal_graph.entity_id_of_abn_kpi, causal_graph.abnormal_kpi.abnormal_metric_id)
-
-        reverse_graph = nx.DiGraph()
-        reverse_graph.add_nodes_from(cause_graph.nodes)
+    @staticmethod
+    def reverse_graph(cause_graph):
+        reversed_graph = nx.DiGraph()
+        reversed_graph.add_nodes_from(cause_graph.nodes)
         for from_, to in cause_graph.edges:
-            reverse_graph.add_edge(to, from_)
+            reversed_graph.add_edge(to, from_)
+        return reversed_graph
 
-        successors = nx.dfs_successors(reverse_graph, abn_node_id)
+    @staticmethod
+    def get_all_paths_to_abn_node(abn_node_id, cause_graph):
+        reversed_graph = DfsPolicy.reverse_graph(cause_graph)
+        successors = nx.dfs_successors(reversed_graph, abn_node_id)
         paths = []
         path = []
 
@@ -145,23 +152,62 @@ class DfsPolicy(InferPolicy):
 
         path.append(abn_node_id)
         dfs_path(abn_node_id)
+        return paths
 
+    @staticmethod
+    def get_scored_paths(cause_graph, paths) -> list:
         scored_paths = []
-        for p in paths:
+        for path in paths:
             scored_paths.append({
-                'score': self.calc_path_score(p, cause_graph),
-                'path': p
+                'score': DfsPolicy.calc_path_score(path, cause_graph),
+                'path': path
             })
-        scored_paths = sorted(scored_paths, key=lambda k: k['score'], reverse=True)
-        scored_paths = scored_paths[:top_k]
+        return scored_paths
 
+    @staticmethod
+    def get_top_paths(scored_paths, top_k) -> list:
+        top_paths = []
+        node_selected = set()
+        metric_selected = set()
+        for path in scored_paths:
+            if len(top_paths) == top_k:
+                break
+            cause_node_id = path.get('path')[0]
+            if cause_node_id in node_selected:
+                continue
+            if cause_node_id[1] in metric_selected:
+                continue
+            if is_virtual_node(cause_node_id):
+                continue
+            node_selected.add(cause_node_id)
+            metric_selected.add(cause_node_id[1])
+            top_paths.append(path)
+
+        return top_paths
+
+    @staticmethod
+    def get_top_causes(top_paths) -> List[Cause]:
         res = []
-        for item in scored_paths:
+        for item in top_paths:
             cause_node_id = item.get('path')[0]
             cause = Cause(cause_node_id[1], cause_node_id[0], item.get('score'), item.get('path'))
             res.append(cause)
-
         return res
+
+    def infer(self, causal_graph: CausalGraph, top_k: int) -> List[Cause]:
+        cause_graph = causal_graph.metric_cause_graph
+        abn_node_id = (causal_graph.entity_id_of_abn_kpi, causal_graph.abnormal_kpi.abnormal_metric_id)
+
+        paths = self.get_all_paths_to_abn_node(abn_node_id, cause_graph)
+        scored_paths = self.get_scored_paths(cause_graph, paths)
+        scored_paths = sorted(scored_paths, key=lambda k: k['score'], reverse=True)
+        top_paths = self.get_top_paths(scored_paths, top_k)
+
+        return self.get_top_causes(top_paths)
+
+
+def is_virtual_node(node_id) -> bool:
+    return rule_parser.is_virtual_metric(node_id[1])
 
 
 def get_infer_policy(policy: str, **options) -> InferPolicy:

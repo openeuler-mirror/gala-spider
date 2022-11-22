@@ -23,8 +23,8 @@ from cause_inference.infer_policy import InferPolicy
 from cause_inference.infer_policy import get_infer_policy
 
 
-def normalize_abn_score(score):
-    return expit(score)
+def preprocess_abn_score(score):
+    return max(0, score)
 
 
 # 因果推理
@@ -172,9 +172,10 @@ def cause_locating(abnormal_kpi: AbnormalEvent, abnormal_metrics: List[AbnormalE
     # 5. 生成异常指标之间的因果图
     causal_graph.init_metric_cause_graph()
 
-    logger.logger.debug("Causal graph nodes are: {}".format(causal_graph.entity_cause_graph.nodes))
-    logger.logger.debug("Causal graph predecessors: {}".format(causal_graph.entity_cause_graph.pred))
-    logger.logger.debug("Causal graph successors: {}".format(causal_graph.entity_cause_graph.succ))
+    logger.logger.debug("Entity cause graph nodes are: {}".format(causal_graph.entity_cause_graph.nodes))
+    logger.logger.debug("Entity cause graph edges are: {}".format(causal_graph.entity_cause_graph.edges))
+    logger.logger.debug("Metric cause graph nodes are: {}".format(causal_graph.metric_cause_graph.nodes))
+    logger.logger.debug("Metric cause graph edges are: {}".format(causal_graph.metric_cause_graph.edges))
 
     # 6. 以故障传播图 + 异常KPI为输入，执行根因推导算法，输出 topK 根因指标
     infer_policy = get_infer_policy(infer_config.infer_conf.get('infer_policy'))

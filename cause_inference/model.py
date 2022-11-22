@@ -7,6 +7,7 @@ from spider.conf.observe_meta import ObserveMetaMgt
 from spider.util import logger
 from spider.util.entity import concate_entity_id
 from spider.util.entity import escape_entity_id
+from cause_inference import rule_parser
 
 
 class AbnormalEvent:
@@ -77,6 +78,10 @@ class CausalGraph:
         self.metric_cause_graph = nx.DiGraph()
         self.init_casual_graph()
 
+    @staticmethod
+    def is_virtual_metric_group(metric_group) -> bool:
+        return len(metric_group) == 1 and rule_parser.is_virtual_metric(metric_group[0])
+
     def init_casual_graph(self):
         for node_id, node_attrs in self.topo_nodes.items():
             self.entity_cause_graph.add_node(node_id, **node_attrs)
@@ -134,19 +139,54 @@ class CausalGraph:
             self.init_metric_edge(edge)
 
     def init_metric_edge(self, entity_edge):
-        from_entity_id = entity_edge[0]
-        to_entity_id = entity_edge[1]
+        f_entity_id = entity_edge[0]
+        t_entity_id = entity_edge[1]
+        avail_relations = self.get_avail_metric_causal_relations(entity_edge)
+
+        unique = set()
+        for f_metric_group, t_metric_group in avail_relations:
+            if self.is_virtual_metric_group(f_metric_group):
+                self.add_virtual_metric_node(f_entity_id, f_metric_group[0])
+            if self.is_virtual_metric_group(t_metric_group):
+                self.add_virtual_metric_node(t_entity_id, t_metric_group[0])
+
+            f_metric_id = self.metric_with_largest_abn_score(f_metric_group, f_entity_id)
+            t_metric_id = self.metric_with_largest_abn_score(t_metric_group, t_entity_id)
+            if (f_metric_id, t_metric_id) not in unique:
+                self.metric_cause_graph.add_edge((f_entity_id, f_metric_id), (t_entity_id, t_metric_id))
+                unique.add((f_metric_id, t_metric_id))
+
+    def add_virtual_metric_node(self, entity_id, metric_id):
+        self.metric_cause_graph.add_node((entity_id, metric_id))
+
+    def get_avail_metric_causal_relations(self, entity_edge):
+        f_metric_ids = self.get_abn_metric_ids(entity_edge[0])
+        t_metric_ids = self.get_abn_metric_ids(entity_edge[1])
         rule_meta = self.entity_cause_graph.edges[entity_edge].get('rule_meta')
-        for from_metric_evt in self.get_abnormal_metrics_of_node(from_entity_id):
-            for to_metric_evt in self.get_abnormal_metrics_of_node(to_entity_id):
-                from_metric_id = from_metric_evt.abnormal_metric_id
-                to_metric_id = to_metric_evt.abnormal_metric_id
-                if rule_meta is not None and not rule_meta.check_metric_pair(from_metric_id, to_metric_id):
-                    continue
-                self.metric_cause_graph.add_edge(
-                    (from_entity_id, from_metric_id),
-                    (to_entity_id, to_metric_id)
-                )
+        return rule_meta.get_avail_causal_relations(f_metric_ids, t_metric_ids)
+
+    def get_abn_metric_ids(self, entity_id):
+        metric_evts = self.get_abnormal_metrics_of_node(entity_id)
+        return [evt.abnormal_metric_id for evt in metric_evts]
+
+    def metric_with_largest_abn_score(self, metric_group: list, entity_id) -> str:
+        if len(metric_group) == 1:
+            return metric_group[0]
+
+        metric_evt_map = {}
+        metric_evts = self.get_abnormal_metrics_of_node(entity_id)
+        for metric_evt in metric_evts:
+            metric_evt_map.setdefault(metric_evt.abnormal_metric_id, metric_evt)
+
+        metric_id_of_largest = metric_group[0]
+        largest_abn_score = metric_evt_map.get(metric_id_of_largest).abnormal_score
+        for metric_id in metric_group:
+            abn_score = metric_evt_map.get(metric_id).abnormal_score
+            if abn_score > largest_abn_score:
+                metric_id_of_largest = metric_id
+                largest_abn_score = abn_score
+
+        return metric_id_of_largest
 
 
 class Cause:

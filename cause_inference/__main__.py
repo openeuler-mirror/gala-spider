@@ -15,7 +15,7 @@ from cause_inference.config import init_infer_config
 from cause_inference.model import AbnormalEvent
 from cause_inference.cause_infer import cause_locating
 from cause_inference.cause_infer import parse_abn_evt
-from cause_inference.cause_infer import normalize_abn_score
+from cause_inference.cause_infer import preprocess_abn_score
 from cause_inference.rule_parser import rule_engine
 from cause_inference.exceptions import InferenceException
 from cause_inference.exceptions import DataParseException
@@ -172,7 +172,7 @@ def get_recommend_metric_evts(abn_kpi_data: dict) -> List[AbnormalEvent]:
         metric_evt = AbnormalEvent(
             timestamp=abn_kpi_data.get('Timestamp'),
             abnormal_metric_id=metric_data.get('metric', ''),
-            abnormal_score=normalize_abn_score(metric_data.get('score')),
+            abnormal_score=preprocess_abn_score(metric_data.get('score')),
             metric_labels=metric_data.get('label', {}),
             desc=metric_data.get('description', '')
         )
