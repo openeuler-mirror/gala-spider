@@ -1,7 +1,5 @@
 from typing import List
 
-from scipy.special import expit
-
 from cause_inference.model import Cause
 from cause_inference.model import CausalGraph
 from cause_inference.model import AbnormalEvent
@@ -12,7 +10,6 @@ from spider.collector.data_collector import DataCollector
 from spider.collector.prometheus_collector import PrometheusCollector
 from cause_inference.exceptions import InferenceException
 from cause_inference.exceptions import DBException
-from cause_inference.exceptions import DataParseException
 from cause_inference.config import infer_config
 from cause_inference.rule_parser import rule_engine
 from cause_inference.arangodb import connect_to_arangodb
@@ -66,24 +63,6 @@ def query_abnormal_topo_subgraph(abnormal_event: AbnormalEvent):
     vertices = subgraph.get('vertices')
     vertices.setdefault(abn_entity.get('_id'), abn_entity)
     return subgraph
-
-
-def parse_abn_evt(data) -> AbnormalEvent:
-    resource = data.get('Resource', {})
-    attrs = data.get('Attributes', {})
-    if not resource.get('metrics'):
-        raise DataParseException('Atribute "Resource.metrics" required in abnormal event')
-    if not attrs.get('entity_id') and not resource.get('metric_label'):
-        raise DataParseException('metric_label or entity_id info need in abnormal event')
-    abn_evt = AbnormalEvent(
-        timestamp=data.get('Timestamp'),
-        abnormal_metric_id=resource.get('metrics'),
-        abnormal_score=1.0,
-        metric_labels=resource.get('metric_label'),
-        abnormal_entity_id=attrs.get('entity_id'),
-        desc=resource.get('description', '') or data.get('Body', '')
-    )
-    return abn_evt
 
 
 def parse_entity_id(orig_entity_id: str) -> str:

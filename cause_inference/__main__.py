@@ -14,7 +14,6 @@ from cause_inference.config import infer_config
 from cause_inference.config import init_infer_config
 from cause_inference.model import AbnormalEvent
 from cause_inference.cause_infer import cause_locating
-from cause_inference.cause_infer import parse_abn_evt
 from cause_inference.cause_infer import preprocess_abn_score
 from cause_inference.rule_parser import rule_engine
 from cause_inference.exceptions import InferenceException
@@ -164,16 +163,34 @@ def init_obsv_meta_coll_thd():
     return obsv_meta_coll_thread
 
 
+def parse_abn_evt(data) -> AbnormalEvent:
+    resource = data.get('Resource', {})
+    attrs = data.get('Attributes', {})
+    if not resource.get('metric'):
+        raise DataParseException('Attribute "Resource.metric" required in abnormal event')
+    if not attrs.get('entity_id') and not resource.get('labels'):
+        raise DataParseException('metric_label or entity_id info need in abnormal event')
+    abn_evt = AbnormalEvent(
+        timestamp=data.get('Timestamp'),
+        abnormal_metric_id=resource.get('metric'),
+        abnormal_score=preprocess_abn_score(resource.get('score', 0.0)),
+        metric_labels=resource.get('labels'),
+        abnormal_entity_id=attrs.get('entity_id'),
+        desc=resource.get('description', '') or data.get('Body', '')
+    )
+    return abn_evt
+
+
 def get_recommend_metric_evts(abn_kpi_data: dict) -> List[AbnormalEvent]:
     metric_evts = []
     obsv_meta_mgt = ObserveMetaMgt()
-    recommend_metrics = abn_kpi_data.get('Resource', {}).get('recommend_metrics', {})
+    recommend_metrics = abn_kpi_data.get('Resource', {}).get('cause_metrics', {})
     for metric_data in recommend_metrics:
         metric_evt = AbnormalEvent(
             timestamp=abn_kpi_data.get('Timestamp'),
             abnormal_metric_id=metric_data.get('metric', ''),
-            abnormal_score=preprocess_abn_score(metric_data.get('score')),
-            metric_labels=metric_data.get('label', {}),
+            abnormal_score=preprocess_abn_score(metric_data.get('score', 0.0)),
+            metric_labels=metric_data.get('labels', {}),
             desc=metric_data.get('description', '')
         )
         if not metric_evt.update_entity_id(obsv_meta_mgt):
