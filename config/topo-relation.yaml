@@ -307,3 +307,29 @@ topo_relations:
               -
                 from: machine_id
                 to: machine_id
+  -
+    type: net
+    dependingitems:
+      -
+        id: belongs_to
+        layer: direct
+        toTypes:
+          -
+            type: host
+            matches:
+              -
+                from: machine_id
+                to: machine_id
+  -
+    type: mem
+    dependingitems:
+      -
+        id: belongs_to
+        layer: direct
+        toTypes:
+          -
+            type: host
+            matches:
+              -
+                from: machine_id
+                to: machine_id
