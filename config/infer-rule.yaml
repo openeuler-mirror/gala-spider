@@ -14,6 +14,17 @@ metric_categories:
         - gala_gopher_proc_less_4k_io_write
         - gala_gopher_proc_greater_4k_io_read
         - gala_gopher_proc_greater_4k_io_write
+      trend: rise
+    -
+      category: PROC_IO_DELAY
+      metrics:
+        - gala_gopher_proc_iowait_us
+        - gala_gopher_proc_bio_latency
+    -
+      category: PROC_NET_DELAY
+      metrics:
+        - gala_gopher_proc_ns_sendmsg
+        - gala_gopher_proc_ns_recvmsg
   disk:
     -
       category: DISK_LOAD
@@ -22,6 +33,7 @@ metric_categories:
         - gala_gopher_disk_wspeed_kB
         - gala_gopher_disk_rspeed
         - gala_gopher_disk_wspeed
+      trend: rise
     -
       category: DISK_DELAY
       metrics:
@@ -64,7 +76,7 @@ infer_rules:
     metric_range:
       -
         from: BLOCK_DELAY
-        to: VIRTUAL
+        to: VIRTUAL_IO_DELAY
   -
     from_type: proc
     to_type: disk
@@ -84,15 +96,46 @@ infer_rules:
     to_type: sli
     metric_range:
       -
-        from: VIRTUAL
+        from: VIRTUAL_IO_DELAY
         to: ALL
       -
         from: PROC_CPU
         to: ALL
+cross_rules:
   -
-    from_type: tcp_link
+    from_type: disk
     to_type: proc
     metric_range:
       -
-        from: ALL
-        to: VIRTUAL
+        from: DISK_LOAD
+        to: PROC_IO_LOAD
+      -
+        from: DISK_LOAD
+        to: VIRTUAL_IO_LOAD
+  -
+    from_type: proc
+    to_type: disk
+    metric_range:
+      -
+        from: PROC_IO_LOAD
+        to: ALL
+      -
+        from: VIRTUAL_IO_LOAD
+        to: ALL
+  -
+    from_type: proc
+    to_type: block
+    metric_range:
+      -
+        from: PROC_IO_DELAY
+        to: BLOCK_DELAY
+      -
+        from: VIRTUAL_IO_DELAY
+        to: BLOCK_DELAY
+  -
+    from_type: block
+    to_type: proc
+    metric_range:
+      -
+        from: BLOCK_DELAY
+        to: VIRTUAL_IO_DELAY

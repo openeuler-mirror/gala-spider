@@ -102,9 +102,9 @@ gala-inference 配置文件 `/etc/gala-inference/gala-inference.yaml` 配置项�
   - tolerated_bias：异常时间点的拓扑图查询所容忍的时间偏移，单位为秒。
   - topo_depth：拓扑图查询的最大深度
   - root_topk：根因定位结果输出前 K 个根因指标
-  - infer_policy：根因推导策略，包括 dfs 和 rw 。
-  - sample_duration：指标的历史数据的采样周期，单位为秒。
-  - evt_valid_duration：根因定位时，有效的系统异常指标事件周期，单位为秒。
+  - infer_policy：根因推导策略，包括 dfs 。
+  - evt_valid_duration：根因定位时，系统异常指标事件的有效历史周期，单位为秒。
+  - evt_future_duration：根因定位时，系统异常指标事件的有效未来周期，单位为秒。
   - evt_aging_duration：根因定位时，系统异常指标事件的老化周期，单位为秒。
 - kafka：kafka配置信息
   - server：kafka服务器地址
@@ -114,6 +114,7 @@ gala-inference 配置文件 `/etc/gala-inference/gala-inference.yaml` 配置项�
   - abnormal_kpi_topic：异常 KPI 事件消息的配置信息。
     - topic_id：异常 KPI 事件消息的topic名称
     - group_id：异常 KPI 事件消息的消费者组ID
+    - consumer_to：消费异常 KPI 事件消息的超时时间，单位为秒。
   - abnormal_metric_topic：系统异常指标事件消息的配置信息
     - topic_id：系统异常指标事件消息的topic名称
     - group_id：系统异常指标事件消息的消费者组ID
@@ -131,7 +132,8 @@ gala-inference 配置文件 `/etc/gala-inference/gala-inference.yaml` 配置项�
 - prometheus：prometheus数据库配置信息，用于获取指标的历史时序数据。
   - base_url：prometheus服务器地址
   - range_api：区间采集API
-  - step：采集时间步长，用于区间采集API
+  - sample_duration：指标的历史数据的采样周期，单位为秒。
+  - step：采集时间步长，用于区间采集API。
 
 ### 配置文件示例
 
@@ -142,8 +144,6 @@ inference:
   topo_depth: 10
   root_topk: 3
   infer_policy: "dfs"
-  # 单位： 秒
-  sample_duration: 600
   # 根因定位时，有效的异常指标事件周期，单位：秒
   evt_valid_duration: 120
   # 异常指标事件的老化周期，单位：秒
@@ -179,5 +179,7 @@ log:
 prometheus:
   base_url: "http://localhost:9090/"
   range_api: "/api/v1/query_range"
+  # 单位： 秒
+  sample_duration: 600
   step: 5
 ```

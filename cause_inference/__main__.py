@@ -1,7 +1,7 @@
 import json
 import os
 import threading
-from typing import List
+import time
 
 from kafka import KafkaConsumer
 from kafka import KafkaProducer
@@ -12,16 +12,20 @@ from spider.conf import init_observe_meta_config
 from spider.conf.observe_meta import ObserveMetaMgt
 from cause_inference.config import infer_config
 from cause_inference.config import init_infer_config
-from cause_inference.model import AbnormalEvent
 from cause_inference.cause_infer import cause_locating
-from cause_inference.cause_infer import preprocess_abn_score
 from cause_inference.rule_parser import rule_engine
 from cause_inference.exceptions import InferenceException
-from cause_inference.exceptions import DataParseException
+from cause_inference.exceptions import NoKpiEventException
+from cause_inference.abnormal_event import AbnEvtMgt
+from cause_inference.output import gen_cause_msg
+from cause_inference.cause_keyword import cause_keyword_mgt
 
 INFER_CONFIG_PATH = '/etc/gala-inference/gala-inference.yaml'
 EXT_OBSV_META_PATH = '/etc/gala-inference/ext-observe-meta.yaml'
 RULE_META_PATH = '/etc/gala-inference/infer-rule.yaml'
+CAUSE_KEYWORD_PATH = '/etc/gala-inference/cause-keyword.yaml'
+
+ABN_KPI_POLL_INTERVAL_SEC = 30
 
 
 def init_config():
@@ -35,7 +39,15 @@ def init_config():
         return False
     logger.logger.info('Load observe metadata success.')
 
-    rule_engine.load_rule_meta_from_yaml(RULE_META_PATH)
+    if not rule_engine.load_rule_meta_from_yaml(RULE_META_PATH):
+        logger.logger.error('Load rule meta failed.')
+        return False
+    logger.logger.info('Load rule meta success.')
+
+    if not cause_keyword_mgt.load_keywords_from_yaml(CAUSE_KEYWORD_PATH):
+        logger.logger.error('Load cause keyword failed.')
+        return False
+    logger.logger.info('Load cause keyword success.')
 
     return True
 
@@ -52,59 +64,6 @@ class ObsvMetaCollThread(threading.Thread):
             metadata = {}
             metadata.update(data)
             self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
-
-
-class AbnMetricEvtMgt:
-    def __init__(self, metric_consumer: KafkaConsumer, valid_duration, aging_duration):
-        self.metric_consumer = metric_consumer
-        self.valid_duration = valid_duration * 1000
-        self.aging_duration = aging_duration * 1000
-        self.all_metric_evts: List[AbnormalEvent] = []
-        self.last_evt_ts = 0
-
-    def consume_evt(self, cur_ts):
-        if self.last_evt_ts > cur_ts:
-            return
-        logger.logger.debug('Start consuming system abnormal event')
-        for msg in self.metric_consumer:
-            data = json.loads(msg.value)
-            try:
-                abn_evt = parse_abn_evt(data)
-            except DataParseException as ex:
-                logger.logger.error(ex)
-                continue
-            if self.is_aging(abn_evt.timestamp, cur_ts):
-                continue
-            if not abn_evt.update_entity_id(ObserveMetaMgt()):
-                logger.logger.debug("Can't identify entity id of the metric {}".format(abn_evt.abnormal_metric_id))
-                continue
-            self.all_metric_evts.append(abn_evt)
-            self.last_evt_ts = abn_evt.timestamp
-            if self.last_evt_ts > cur_ts:
-                break
-        logger.logger.debug('Finished to consume system abnormal event')
-
-    def filter_valid_evts(self, cur_ts):
-        res = []
-        for evt in self.all_metric_evts:
-            if not self.is_valid(evt.timestamp, cur_ts):
-                continue
-            res.append(evt)
-        return res
-
-    def clear_aging_evts(self, cur_ts):
-        res = []
-        for evt in self.all_metric_evts:
-            if self.is_aging(evt.timestamp, cur_ts):
-                continue
-            res.append(evt)
-        self.all_metric_evts = res
-
-    def is_valid(self, evt_ts, cur_ts):
-        return cur_ts - self.valid_duration < evt_ts <= cur_ts
-
-    def is_aging(self, evt_ts, cur_ts):
-        return evt_ts + self.aging_duration < cur_ts
 
 
 def init_metadata_consumer():
@@ -125,6 +84,7 @@ def init_kpi_consumer():
         kpi_kafka_conf.get('topic_id'),
         bootstrap_servers=[kafka_server],
         group_id=kpi_kafka_conf.get('group_id'),
+        consumer_timeout_ms=kpi_kafka_conf.get('consumer_to') * 1000,
     )
     return kpi_consumer
 
@@ -147,12 +107,15 @@ def init_cause_producer():
     return cause_producer
 
 
-def init_abn_metric_evt_mgt():
+def init_abn_evt_mgt():
+    kpi_consumer = init_kpi_consumer()
     metric_consumer = init_metric_consumer()
     valid_duration = infer_config.infer_conf.get('evt_valid_duration')
+    future_duration = infer_config.infer_conf.get('evt_future_duration')
     aging_duration = infer_config.infer_conf.get('evt_aging_duration')
-    abn_metric_evt_mgt = AbnMetricEvtMgt(metric_consumer, valid_duration=valid_duration, aging_duration=aging_duration)
-    return abn_metric_evt_mgt
+    abn_evt_mgt = AbnEvtMgt(kpi_consumer, metric_consumer, valid_duration=valid_duration,
+                            aging_duration=aging_duration, future_duration=future_duration)
+    return abn_evt_mgt
 
 
 def init_obsv_meta_coll_thd():
@@ -163,57 +126,16 @@ def init_obsv_meta_coll_thd():
     return obsv_meta_coll_thread
 
 
-def parse_abn_evt(data) -> AbnormalEvent:
-    resource = data.get('Resource', {})
-    attrs = data.get('Attributes', {})
-    if not resource.get('metric'):
-        raise DataParseException('Attribute "Resource.metric" required in abnormal event')
-    if not attrs.get('entity_id') and not resource.get('labels'):
-        raise DataParseException('metric_label or entity_id info need in abnormal event')
-    abn_evt = AbnormalEvent(
-        timestamp=data.get('Timestamp'),
-        abnormal_metric_id=resource.get('metric'),
-        abnormal_score=preprocess_abn_score(resource.get('score', 0.0)),
-        metric_labels=resource.get('labels'),
-        abnormal_entity_id=attrs.get('entity_id'),
-        desc=resource.get('description', '') or data.get('Body', '')
-    )
-    return abn_evt
+def send_cause_event(cause_producer: KafkaProducer, cause_msg):
+    logger.logger.debug(json.dumps(cause_msg, indent=2))
 
-
-def get_recommend_metric_evts(abn_kpi_data: dict) -> List[AbnormalEvent]:
-    metric_evts = []
-    obsv_meta_mgt = ObserveMetaMgt()
-    recommend_metrics = abn_kpi_data.get('Resource', {}).get('cause_metrics', {})
-    for metric_data in recommend_metrics:
-        metric_evt = AbnormalEvent(
-            timestamp=abn_kpi_data.get('Timestamp'),
-            abnormal_metric_id=metric_data.get('metric', ''),
-            abnormal_score=preprocess_abn_score(metric_data.get('score', 0.0)),
-            metric_labels=metric_data.get('labels', {}),
-            desc=metric_data.get('description', '')
-        )
-        if not metric_evt.update_entity_id(obsv_meta_mgt):
-            logger.logger.debug("Can't identify entity id of the metric {}".format(metric_evt.abnormal_metric_id))
-            continue
-        metric_evts.append(metric_evt)
-    return metric_evts
-
-
-def gen_cause_msg(abn_kpi_data: dict, cause_res: dict) -> dict:
-    attributes = abn_kpi_data.get('Attributes', {})
-    cause_msg = {
-        'Timestamp': abn_kpi_data.get('Timestamp'),
-        'event_id': attributes.get('event_id', ''),
-        'Atrributes': {
-            'event_id': attributes.get('event_id', '')
-        },
-        'Resource': cause_res,
-        'SeverityText': 'WARN',
-        'SeverityNumber': 13,
-        'Body': 'A cause inferring event for an abnormal event',
-    }
-    return cause_msg
+    infer_kafka_conf = infer_config.kafka_conf.get('inference_topic')
+    try:
+        cause_producer.send(infer_kafka_conf.get('topic_id'), json.dumps(cause_msg).encode())
+    except KafkaTimeoutError as ex:
+        logger.logger.error(ex)
+        return
+    logger.logger.info('A cause inferring event has been sent to kafka.')
 
 
 def main():
@@ -221,57 +143,34 @@ def main():
         return
     logger.logger.info('Start cause inference service...')
 
-    obsv_meta_mgt = ObserveMetaMgt()
-    kpi_consumer = init_kpi_consumer()
-    infer_kafka_conf = infer_config.kafka_conf.get('inference_topic')
     cause_producer = init_cause_producer()
-
-    sys_evt_on = infer_config.infer_conf.get('sys_evt_on')
-    abn_metric_evt_mgt = None
-    if sys_evt_on:
-        abn_metric_evt_mgt = init_abn_metric_evt_mgt()
+    abn_evt_mgt = init_abn_evt_mgt()
 
     obsv_meta_coll_thread = init_obsv_meta_coll_thd()
     obsv_meta_coll_thread.start()
+    time.sleep(5)
 
     while True:
         logger.logger.info('Start consuming abnormal kpi event...')
-        kpi_msg = next(kpi_consumer)
-        data = json.loads(kpi_msg.value)
         try:
-            abn_kpi = parse_abn_evt(data)
-        except DataParseException as ex:
-            logger.logger.error(ex)
+            abn_kpi, abn_metrics = abn_evt_mgt.get_abnormal_info()
+        except NoKpiEventException:
+            time.sleep(ABN_KPI_POLL_INTERVAL_SEC)
+            abn_evt_mgt.consume_kpi_evts()
             continue
-        if not abn_kpi.update_entity_id(obsv_meta_mgt):
-            logger.logger.warning("Can't identify entity id of the abnormal kpi {}".format(abn_kpi.abnormal_metric_id))
-            continue
-
-        metric_evts = get_recommend_metric_evts(data)
-
-        if sys_evt_on:
-            abn_metric_evt_mgt.consume_evt(abn_kpi.timestamp)
-            abn_metric_evt_mgt.clear_aging_evts(abn_kpi.timestamp)
-            abn_metric_evts = abn_metric_evt_mgt.filter_valid_evts(abn_kpi.timestamp)
-            metric_evts.extend(abn_metric_evts)
-
-        logger.logger.debug('abnormal kpi is: {}'.format(abn_kpi))
-        logger.logger.debug('abnormal metrics are: {}'.format(metric_evts))
+        logger.logger.debug('Abnormal kpi is: {}'.format(abn_kpi))
+        logger.logger.debug('Abnormal metrics are: {}'.format(abn_metrics))
 
         try:
-            cause_res = cause_locating(abn_kpi, metric_evts)
+            cause_res = cause_locating(abn_kpi, abn_metrics)
         except InferenceException as ie:
-            logger.logger.error(ie)
+            logger.logger.warning(ie)
             continue
-
-        cause_msg = gen_cause_msg(data, cause_res)
-        logger.logger.debug(json.dumps(cause_msg, indent=2))
-        try:
-            cause_producer.send(infer_kafka_conf.get('topic_id'), json.dumps(cause_msg).encode())
-        except KafkaTimeoutError as ex:
-            logger.logger.error(ex)
+        if not cause_res:
+            logger.logger.info('No cause detected, event_id={}'.format(abn_kpi.event_id))
             continue
-        logger.logger.info('A cause inferring event has been sent to kafka.')
+        cause_msg = gen_cause_msg(abn_kpi, cause_res)
+        send_cause_event(cause_producer, cause_msg)
 
 
 if __name__ == '__main__':

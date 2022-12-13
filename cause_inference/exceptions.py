@@ -8,3 +8,7 @@ class DBException(InferenceException):
 
 class DataParseException(InferenceException):
     pass
+
+
+class NoKpiEventException(InferenceException):
+    pass

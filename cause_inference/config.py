@@ -14,9 +14,8 @@ class InferConfig:
             'topo_depth': 10,
             'root_topk': 3,
             'infer_policy': 'dfs',
-            'sample_duration': 600,
-            'sys_evt_on': False,
             'evt_valid_duration': 120,
+            'evt_future_duration': 60,
             'evt_aging_duration': 600,
         }
 
@@ -36,6 +35,7 @@ class InferConfig:
             'abnormal_kpi_topic': {
                 'topic_id': '',
                 'group_id': 'abn-kpi-inference',
+                'consumer_to': 1,
             },
             'abnormal_metric_topic': {
                 'topic_id': '',
@@ -55,6 +55,7 @@ class InferConfig:
         self.prometheus_conf = {
             'base_url': '',
             'range_api': '',
+            'sample_duration': 600,
             'step': 5,
         }
 
@@ -74,11 +75,6 @@ class InferConfig:
         prometheus_conf = result.get('prometheus', {})
 
         self.infer_conf.update(infer_conf)
-        sys_evt_on = False
-        if infer_conf.get('sys_evt_on', 0) == 1:
-            sys_evt_on = True
-        self.infer_conf.update({'sys_evt_on': sys_evt_on})
-
         self.kafka_conf.update(kafka_conf)
         self.arango_conf.update(arango_conf)
         self.log_conf.update(log_conf)

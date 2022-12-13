@@ -203,12 +203,7 @@ class ClusterCauseLocator(CauseLocator):
             all_neigh_causes = []
             for start_metric_node_id in affected_metric_node_ids:
                 causes = self.infer_policy.infer(cross_causal_graph.metric_cause_graph, start_metric_node_id, top_k)
-                for cause in causes:
-                    if cause.path[0].node_attrs.get('machine_id') != neigh_topo.machine_id:
-                        logger.logger.debug('Cause(metric_id={}, entity_id={}) not in machine {}'.
-                                            format(cause.metric_id, cause.entity_id, neigh_topo.machine_id))
-                        continue
-                    all_neigh_causes.append(cause)
+                all_neigh_causes.extend(causes)
 
             newly_cause_nodes = self.cause_tree.append_all_causes(all_neigh_causes)
             if len(newly_cause_nodes) > 0:

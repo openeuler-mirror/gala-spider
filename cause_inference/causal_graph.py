@@ -71,7 +71,7 @@ class CausalGraph:
         return self.entity_cause_graph.nodes[node_id].get('abnormal_metrics', {})
 
     def filter_abn_metrics_by_corr_score(self):
-        for n_id, n_attrs in self.entity_cause_graph.nodes.items():
+        for n_id in self.entity_cause_graph.nodes:
             abn_metrics = self.get_abnormal_metrics(n_id)
             metric_ids = list(abn_metrics.keys())
             for metric_id in metric_ids:

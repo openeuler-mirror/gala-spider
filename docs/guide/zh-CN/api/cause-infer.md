@@ -8,7 +8,7 @@
 {
     "Timestamp": 0, 
     "event_id": "",
-    "Atrributes": {
+    "Attributes": {
         "event_id": ""
     }, 
     "Resource": {
@@ -16,7 +16,8 @@
             "metric_id": "",
             "entity_id": "",
             "timestamp": 0, 
-            "metric_labels": {}
+            "metric_labels": {},
+            "desc": ""
         }, 
         "cause_metrics": [
             {
@@ -24,23 +25,31 @@
                 "entity_id": "",
                 "metric_labels": {},
                 "timestamp": 0,
+                "desc": "",
+                "score": 0,
+                "keyword": "",
                 "path": [
                     {
                         "metric_id": "",
                         "entity_id": "",
                         "metric_labels": {},
-                        "timestamp": 0
+                        "timestamp": 0,
+                        "desc": "",
+                        "score": 0
                     },
                     {
                         "metric_id": "",
                         "entity_id": "",
                         "metric_labels": {},
-                        "timestamp": 0
+                        "timestamp": 0,
+                        "desc": "",
+                        "score": 0
                     }
                 ]
             }
         ]
     }, 
+    "keywords": [],
     "SeverityText": "WARN", 
     "SeverityNumber": 13, 
     "Body": "A cause inferring event for an abnormal event"
@@ -59,16 +68,23 @@
     - entity_id ：异常 KPI 对应的观测实例ID
     - timestamp ：异常 KPI 发生的时间
     - metric_labels ：异常 KPI 的标签信息
+    - desc：异常KPI的描述信息
   - cause_metrics ：此次根因定位输出的 topK 根因指标信息，它是一个对象列表，每个元素内容包括：
     - metric_id ：根因指标的名称
     - entity_id ：根因指标对应的观测实例ID
     - timestamp ：根因指标发生异常的时间
     - metric_labels ：根因指标的标签信息
+    - desc：根因指标的描述信息
+    - score：根因指标的得分
+    - keyword：根因指标的故障分类关键字
     - path ：根因传播路径，它是一个对象列表，从根因指标到异常KPI指标经过的异常指标传播路径按顺序存入该列表。每个元素内容包括：
       - metric_id ：路径中指标的名称
       - entity_id ：路径中指标对应的观测实例ID
       - timestamp ：路径中指标发生异常的时间
       - metric_labels ：路径中指标的标签信息
+      - desc：路径中指标的描述信息
+      - score：路径中指标的得分
+- keywords：一个列表，topK 根因指标的故障分类关键字
 - SeverityText ：根因定位事件的严重等级
 - SeverityNumber ：根因定位事件的严重等级编号
 - Body ：根因定位事件的描述信息

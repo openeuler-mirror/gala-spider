@@ -36,7 +36,7 @@ setup(
     data_files=[
         ('/etc/gala-spider/', ['config/gala-spider.yaml', 'config/topo-relation.yaml', 'config/ext-observe-meta.yaml']),
         ('/etc/gala-inference/', ['config/gala-inference.yaml', 'config/ext-observe-meta.yaml',
-                                  'config/infer-rule.yaml']),
+                                  'config/infer-rule.yaml', 'config/cause-keyword.yaml']),
         ('/usr/lib/systemd/system/', ['service/gala-spider.service', 'service/gala-inference.service']),
     ],
     entry_points={
