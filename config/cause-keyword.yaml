@@ -1,0 +1,13 @@
+entity_keywords:
+  proc: process
+  thread: process
+  container: process
+  sli: process
+  block: disk
+  disk: disk
+  tcp_link: network
+  nic: network
+  qdisc: network
+  endpoint: network
+  cpu: cpu
+  mem: memory

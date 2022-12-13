@@ -4,11 +4,9 @@ inference:
   topo_depth: 10
   root_topk: 3
   infer_policy: "dfs"
-  # 单位： 秒
-  sample_duration: 600
-  sys_evt_on: 0
   # 根因定位时，有效的异常指标事件周期，单位：秒
-  evt_valid_duration: 120
+  evt_valid_duration: 180
+  evt_future_duration: 60
   # 异常指标事件的老化周期，单位：秒
   evt_aging_duration: 600
 
@@ -20,6 +18,7 @@ kafka:
   abnormal_kpi_topic:
     topic_id: "gala_anteater_hybrid_model"
     group_id: "abn-kpi-inference"
+    consumer_to: 5
   abnormal_metric_topic:
     topic_id: "gala_gopher_event"
     group_id: "abn-metric-inference"
@@ -42,4 +41,6 @@ log:
 prometheus:
   base_url: "http://localhost:9090/"
   range_api: "/api/v1/query_range"
+  # 单位： 秒
+  sample_duration: 600
   step: 5

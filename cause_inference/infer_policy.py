@@ -5,15 +5,15 @@ from typing import List
 
 import networkx as nx
 
-from cause_inference.model import CausalGraph
-from cause_inference.model import Cause
+from spider.util import logger
+from cause_inference.model import Cause, MetricNode, MetricNodeId
+from cause_inference.model import is_virtual_metric
 from cause_inference.exceptions import InferenceException
-from cause_inference import rule_parser
 
 
 class InferPolicy(ABC):
     @abstractmethod
-    def infer(self, causal_graph: CausalGraph, top_k: int) -> List[Cause]:
+    def infer(self, cause_graph: nx.DiGraph, target_node_id, top_k: int) -> List[Cause]:
         pass
 
 
@@ -26,16 +26,13 @@ class RandomWalkPolicy(InferPolicy):
         self.window_size = window_size
         self.transfer_matrix = {}
 
-    def infer(self, causal_graph: CausalGraph, top_k: int) -> List[Cause]:
-        cause_graph = causal_graph.metric_cause_graph
-
+    def infer(self, cause_graph: nx.DiGraph, target_node_id, top_k: int) -> List[Cause]:
         # 计算转移概率矩阵
         self.transfer_matrix.clear()
         for node_id in cause_graph.nodes:
             self.calc_transfer_probs(node_id, cause_graph)
 
-        abn_node_id = (causal_graph.entity_id_of_abn_kpi, causal_graph.abnormal_kpi.abnormal_metric_id)
-        walk_nums = self.one_order_random_walk(abn_node_id)
+        walk_nums = self.one_order_random_walk(target_node_id)
         cause_res = list(walk_nums.items())
         cause_res = sorted(cause_res, key=lambda k: k[1], reverse=True)
         cause_res = cause_res[:top_k]
@@ -110,56 +107,58 @@ class RandomWalkPolicy(InferPolicy):
 
 class DfsPolicy(InferPolicy):
     @staticmethod
-    def calc_path_score(path, cause_graph):
+    def get_node_cause_score(node_attrs: dict):
+        return node_attrs.get('corr_score', 0)
+
+    @staticmethod
+    def calc_path_score(path: List[MetricNode]):
         length = len(path) - 1
         if length < 1:
             return 0.0
         total_score = 0.0
         num_of_valid_node = 0
         for node in path[:length]:
-            if is_virtual_node(node):
+            if is_virtual_node(node.node_id):
                 continue
-            total_score += cause_graph.nodes[node].get('abnormal_score', 0)
+            total_score += DfsPolicy.get_node_cause_score(node.node_attrs)
             num_of_valid_node += 1
         if num_of_valid_node != 0:
             total_score /= num_of_valid_node
         return total_score
 
     @staticmethod
-    def reverse_graph(cause_graph):
-        reversed_graph = nx.DiGraph()
-        reversed_graph.add_nodes_from(cause_graph.nodes)
-        for from_, to in cause_graph.edges:
-            reversed_graph.add_edge(to, from_)
-        return reversed_graph
-
-    @staticmethod
-    def get_all_paths_to_abn_node(abn_node_id, cause_graph):
-        reversed_graph = DfsPolicy.reverse_graph(cause_graph)
-        successors = nx.dfs_successors(reversed_graph, abn_node_id)
+    def get_all_paths_to_abn_node(abn_node_id, cause_graph: nx.DiGraph) -> List[MetricNode]:
         paths = []
         path = []
+        node_selected = set()
 
-        def dfs_path(loc):
-            if not successors.get(loc):
-                if len(path) > 0:
-                    paths.append(path[::-1])
-                return
-            for v in successors.get(loc):
-                path.append(v)
-                dfs_path(v)
+        def dfs_path(node_id):
+            has_pred = False
+            for pred_node_id in cause_graph.predecessors(node_id):
+                has_pred = True
+                if pred_node_id in node_selected:
+                    logger.logger.warning('Circle exist in cause graph, please check.')
+                    continue
+                node_selected.add(pred_node_id)
+                path.append(MetricNode(pred_node_id, cause_graph.nodes[pred_node_id]))
+                dfs_path(pred_node_id)
                 path.pop()
+                node_selected.remove(pred_node_id)
+            if not has_pred:
+                paths.append(path[::-1])
+                return
 
-        path.append(abn_node_id)
+        node_selected.add(abn_node_id)
+        path.append(MetricNode(abn_node_id, cause_graph.nodes[abn_node_id]))
         dfs_path(abn_node_id)
         return paths
 
     @staticmethod
-    def get_scored_paths(cause_graph, paths) -> list:
+    def get_scored_paths(paths) -> list:
         scored_paths = []
         for path in paths:
             scored_paths.append({
-                'score': DfsPolicy.calc_path_score(path, cause_graph),
+                'score': DfsPolicy.calc_path_score(path),
                 'path': path
             })
         return scored_paths
@@ -169,45 +168,48 @@ class DfsPolicy(InferPolicy):
         top_paths = []
         node_selected = set()
         metric_selected = set()
-        for path in scored_paths:
+        for scored_path in scored_paths:
             if len(top_paths) == top_k:
                 break
-            cause_node_id = path.get('path')[0]
-            if cause_node_id in node_selected:
+            cause_node: MetricNode = scored_path.get('path')[0]
+            machine_id = cause_node.node_attrs.get('machine_id')
+            if cause_node.node_id in node_selected:
                 continue
-            if cause_node_id[1] in metric_selected:
+            if (machine_id, cause_node.node_id.metric_id) in metric_selected:
                 continue
-            if is_virtual_node(cause_node_id):
-                continue
-            node_selected.add(cause_node_id)
-            metric_selected.add(cause_node_id[1])
-            top_paths.append(path)
+            node_selected.add(cause_node.node_id)
+            metric_selected.add((machine_id, cause_node.node_id.metric_id))
+
+            top_paths.append(scored_path)
 
         return top_paths
 
     @staticmethod
-    def get_top_causes(top_paths) -> List[Cause]:
+    def parse_causes(top_paths) -> List[Cause]:
         res = []
         for item in top_paths:
-            cause_node_id = item.get('path')[0]
-            cause = Cause(cause_node_id[1], cause_node_id[0], item.get('score'), item.get('path'))
+            path = item.get('path')
+            cause = Cause(path[0].node_id.metric_id, path[0].node_attrs.get('entity_id'), item.get('score'), path)
             res.append(cause)
         return res
 
-    def infer(self, causal_graph: CausalGraph, top_k: int) -> List[Cause]:
-        cause_graph = causal_graph.metric_cause_graph
-        abn_node_id = (causal_graph.entity_id_of_abn_kpi, causal_graph.abnormal_kpi.abnormal_metric_id)
+    def infer(self, cause_graph: nx.DiGraph, target_node_id, top_k: int) -> List[Cause]:
+        if target_node_id not in cause_graph.nodes:
+            return []
 
-        paths = self.get_all_paths_to_abn_node(abn_node_id, cause_graph)
-        scored_paths = self.get_scored_paths(cause_graph, paths)
+        paths = self.get_all_paths_to_abn_node(target_node_id, cause_graph)
+        scored_paths = self.get_scored_paths(paths)
         scored_paths = sorted(scored_paths, key=lambda k: k['score'], reverse=True)
-        top_paths = self.get_top_paths(scored_paths, top_k)
+        if top_k > 0:
+            top_paths = self.get_top_paths(scored_paths, top_k)
+        else:
+            top_paths = scored_paths
 
-        return self.get_top_causes(top_paths)
+        return self.parse_causes(top_paths)
 
 
-def is_virtual_node(node_id) -> bool:
-    return rule_parser.is_virtual_metric(node_id[1])
+def is_virtual_node(node_id: MetricNodeId) -> bool:
+    return is_virtual_metric(node_id.metric_id)
 
 
 def get_infer_policy(policy: str, **options) -> InferPolicy:
