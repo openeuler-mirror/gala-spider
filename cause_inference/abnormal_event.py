@@ -2,6 +2,7 @@ import json
 from enum import Enum
 from queue import Queue, Empty
 from typing import List
+import time
 
 from kafka import KafkaConsumer
 
@@ -37,6 +38,7 @@ class AbnEvtMgt:
         except Empty as ex:
             raise NoKpiEventException from ex
 
+        self.wait_future_evts(abn_kpi.timestamp)
         self.consume_kpi_evts_with_deadline(abn_kpi.timestamp)
         self.consume_metric_evts_with_deadline(abn_kpi.timestamp)
         self.clear_aging_evts(abn_kpi.timestamp)
@@ -144,6 +146,12 @@ class AbnEvtMgt:
 
     def is_future(self, evt_ts, cur_ts):
         return evt_ts > cur_ts + self.future_duration
+
+    def wait_future_evts(self, evt_ts):
+        cur_ts = int(time.time()) * 1000
+        if evt_ts <= cur_ts < evt_ts + self.future_duration:
+            wait_sec = (evt_ts + self.future_duration - cur_ts) // 1000
+            time.sleep(wait_sec)
 
 
 def preprocess_abn_score(score):

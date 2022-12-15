@@ -58,10 +58,14 @@ class CauseLocator:
     @staticmethod
     def filter_causes(causes: List[Cause]) -> List[Cause]:
         res = []
+        dup = set()
         for cause in causes:
             filtered_cause = CauseLocator.clear_virtual_cause(cause)
             if filtered_cause is not None:
-                res.append(filtered_cause)
+                key = (filtered_cause.metric_id, filtered_cause.entity_id)
+                if key not in dup:
+                    dup.add(key)
+                    res.append(filtered_cause)
         return res
 
     def construct_causal_graph(self, entity_causal_relations: List[tuple], abn_metrics: List[AbnormalEvent],
@@ -106,10 +110,11 @@ class CauseLocator:
         self.topo_ts = self.topo_db_mgt.query_recent_topo_ts(self.abn_kpi.timestamp // 1000)
 
     def calc_corr_score(self, causal_graph: CausalGraph):
+        end_ts = self.abn_kpi.timestamp // 1000 + infer_config.infer_conf.get('evt_future_duration')
         if not self.abn_kpi.hist_data:
             hist_data = self.metric_db_mgt.query_metric_hist_data(self.abn_kpi.abnormal_metric_id,
                                                                   self.abn_kpi.metric_labels,
-                                                                  self.topo_ts)
+                                                                  end_ts)
             self.abn_kpi.set_hist_data(hist_data)
 
         for node_id, node_attrs in causal_graph.entity_cause_graph.nodes.items():
@@ -120,7 +125,7 @@ class CauseLocator:
 
             abn_metrics = causal_graph.get_abnormal_metrics(node_id)
             for metric_id, metric_attrs in abn_metrics.items():
-                metric_hist_data = self.metric_db_mgt.query_metric_hist_data(metric_id, metric_labels, self.topo_ts)
+                metric_hist_data = self.metric_db_mgt.query_metric_hist_data(metric_id, metric_labels, end_ts)
 
                 data_trend = trend(metric_hist_data)
                 metric_attrs.setdefault('real_trend', data_trend)
