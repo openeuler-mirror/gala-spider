@@ -10,10 +10,6 @@ metric_categories:
       metrics:
         - gala_gopher_proc_read_bytes
         - gala_gopher_proc_write_bytes
-        - gala_gopher_proc_less_4k_io_read
-        - gala_gopher_proc_less_4k_io_write
-        - gala_gopher_proc_greater_4k_io_read
-        - gala_gopher_proc_greater_4k_io_write
       trend: rise
     -
       category: PROC_IO_DELAY
@@ -49,6 +45,7 @@ metric_categories:
         - gala_gopher_block_latency_req_last
         - gala_gopher_block_latency_req_sum
         - gala_gopher_block_latency_req_jitter
+        - gala_gopher_block_count_latency_req
   nic:
     -
       category: NIC_DROP

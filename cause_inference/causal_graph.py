@@ -67,6 +67,13 @@ class CausalGraph:
         else:
             abn_metrics[abn_metric.abnormal_metric_id] = abn_metric.to_dict()
 
+        metric_labels = abn_metrics[abn_metric.abnormal_metric_id].get('metric_labels')
+        if not metric_labels:
+            metric_labels = dict(node_attrs.get('raw_data', {}))
+            if 'metrics' in metric_labels:
+                metric_labels.pop('metrics')
+            abn_metrics[abn_metric.abnormal_metric_id].update({'metric_labels': metric_labels})
+
     def get_abnormal_metrics(self, node_id) -> dict:
         return self.entity_cause_graph.nodes[node_id].get('abnormal_metrics', {})
 
