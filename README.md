@@ -198,7 +198,7 @@ gala-spider 项目提供了两个功能模块，它们分别是：
       - prometheus_server ：指定 Prometheus 服务器地址
       - arangodb_server ：指定 arangodb 服务器地址
       - kafka_server ：指定 kafka 服务器地址
-      - log_level ：指定 gala-spider 日志打印级别
+      - log_level ：指定 gala-inference 日志打印级别
 
       此外，如果需要从宿主机的配置文件中启动容器，可通过挂载卷的方式执行：
 

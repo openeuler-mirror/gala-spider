@@ -39,7 +39,7 @@ def format_cause_metrics(causes: List[Cause]):
             'metric_labels': node_attrs.get('metric_labels', {}),
             'timestamp': node_attrs.get('timestamp'),
             'desc': node_attrs.get('desc'),
-            'score': node_attrs.get('corr_score', 0.0),
+            'score': cause.cause_score,
             'keyword': cause_keyword_mgt.get_keyword_of_entity(node_attrs.get('entity_type')),
         }
         path = []
