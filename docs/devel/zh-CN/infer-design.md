@@ -18,7 +18,14 @@
 
 ### 专家规则
 
-现有专家规则包括：
+现有专家规则分为两类，分别是：
+
+- 主机内专家规则：定义了单个主机内部的观测实体之间的因果关系。
+- 跨主机专家规则：定义了主机之间的观测实体之间的因果关系。
+
+#### 主机内专家规则
+
+主机内专家规则包括：
 
 - 规则1：如果 tcp_link 观测实例 A 和 sli 观测实例 B 属于同一个 process 观测实例 C，则建立 A 到 B 的因果关系。
 
@@ -47,6 +54,96 @@
 - 规则7：如果 cpu 观测实例 A 和 process 观测实例 B 属于同一个主机，则建立 A 到 B 的因果关系。
 
   当系统 cpu 资源负载比较高的时候，某个进程获得 cpu 调度的时间往往会下降，进而导致进程的性能指标出现劣化。
+  
+- 规则8：如果 nic 观测实例 A 和 tcp_link 观测实例 B 属于同一个主机，则建立 A 到 B 的因果关系。
+
+  网卡的故障会导致 tcp 连接指标出现异常，比如丢包、时延等。
+
+#### 跨主机专家规则
+
+跨主机专家规则需要针对实际的应用场景进行定制，下面定义了基于 qemu-kvm 的虚拟化场景的专家规则：
+
+- 规则9：在基于 qemu-kvm 的虚拟化场景，如果虚拟机 A 运行在物理机的 qemu 进程 B 上，则建立 A 上 disk 观测实例 C 到 B 的因果关系。
+
+  在该场景下，qemu 进程作为虚拟机的实际 IO 存储后端，当虚拟机 IO 负载冲高时，故障会传播到 qemu 进程。
+
+- 规则10：在基于 qemu-kvm 的虚拟化场景，如果虚拟机 A 运行在物理机的 qemu 进程 B 上，则建立 B 到 A 上 block 观测实例 C 的因果关系。
+
+  在该场景下，qemu 进程作为虚拟机的实际 IO 存储后端，当物理机 IO 性能劣化时，故障会向上传播到虚拟机的 block 层。
+
+针对基于 ceph 的分布式存储场景，专家规则定义如下：
+
+- 规则11：在基于 ceph 的分布式存储场景，如果物理机 A 和物理机 B 存在 store_in 关系，则建立 A 上 qemu 进程观测实例 C 到 B 上 disk 观测实例 D 的因果关系。
+
+  在该场景下，物理机 B 作为物理机 A 上 qemu 进程的实际网络 IO 存储后端，当 qemu 进程的 IO 负载冲高时，可能会导致物理机 B 的磁盘 IO 负载冲高。
+
+- 规则12：在基于 ceph 的分布式存储场景，如果物理机 A 和物理机 B 存在 store_in 关系，则建立 B 上 block 观测实例 C 到 A 上 qemu 进程观测实例 D 的因果关系。
+
+  在该场景下，物理机 B 作为物理机 A 上 qemu 进程的实际网络 IO 存储后端，当物理机 B 的 IO 性能劣化时，故障会向上传播到 qemu 进程。
+
+
+
+#### 指标粒度的专家规则
+
+一个观测实体往往包含多种不同类型的观测指标，不同的观测指标之间往往存在不同的因果关系。例如，进程（proc）观测实体包含cpu类、磁盘类、网络类等指标，磁盘（disk）观测实体发生故障时，往往会直接导致进程的磁盘类指标的异常，而不是cpu类、网络类等指标。为了更精准地表达观测实体之间的因果关系，我们在定义了观测实体之间的因果关系的基础之上，添加了指标粒度的因果规则。
+
+首先，我们对观测实体包含的指标集合进行分类。以进程（proc）和 磁盘（disk）为例，它们的指标分类为：
+
+**进程（proc）：**
+
+- **PROC_CPU** ：cpu类指标，指标集合为，
+  - gala_gopher_proc_utime_jiffies
+  - gala_gopher_proc_stime_jiffies
+- **PROC_IO_LOAD** ：磁盘IO负载类指标，指标集合为，
+  - gala_gopher_proc_read_bytes
+  - gala_gopher_proc_write_bytes
+- **PROC_IO_DELAY** ：磁盘IO时延类指标，指标集合为，
+  - gala_gopher_proc_iowait_us
+  - gala_gopher_proc_bio_latency
+- **PROC_NET_DELAY** ：网络时延类指标，指标集合为，
+  - gala_gopher_proc_ns_sendmsg
+  - gala_gopher_proc_ns_recvmsg
+
+**磁盘（disk）：**
+
+- **DISK_LOAD**：磁盘IO负载类指标，指标集合为，
+  - gala_gopher_disk_rspeed_kB
+  - gala_gopher_disk_wspeed_kB
+  - gala_gopher_disk_rspeed
+  - gala_gopher_disk_wspeed
+- **DISK_DELAY**：磁盘IO时延类指标，指标集合为，
+  - gala_gopher_disk_r_await
+  - gala_gopher_disk_w_await
+  - gala_gopher_disk_rareq
+  - gala_gopher_disk_wareq
+
+其它类型观测实体的指标分类参见配置文件 `config/infer-rule.yaml`。除此之外，我们还定义了3种特殊的指标分类，它们分别是：
+
+- **ALL** ：表示某个观测实体的所有指标分类的集合。比如对于 disk 观测实体，ALL = {DISK_LOAD, DISK_DELAY, OTHER} 。
+- **OTHER** ：表示某个观测实体的未被分类的指标集合。比如在 disk 观测实体中，所有不属于 DISK_LOAD 和 DISK_DELAY 的指标都归为 OTHER 类。
+- **VIRTUAL_xxx** 类：虚拟指标集合，表示某个观测实体中还未被观测的指标，或者是已经观测但无法有效反映实际变化的指标。现有的虚拟指标分类包括：
+  - VIRTUAL ：默认虚拟指标
+  - VIRTUAL_IO_DELAY ：IO时延类虚拟指标
+  - VIRTUAL_IO_LOAD ：IO负载类虚拟指标
+  - VIRTUAL_NET_DELAY ：网络时延类虚拟指标
+
+定义好观测实体的指标分类后，接下来我们就可以定义指标粒度的因果关系了。`规则4`中定义了 proc 到 disk 之间的因果关系，当 proc 正在密集请求磁盘时，它的 IO 负载类指标会冲高，进而导致磁盘排队请求量变大，最终可能导致磁盘请求时延性能劣化。因此我们可以添加如下约束：
+
+```yaml
+-
+  from_type: proc
+  to_type: disk
+  metric_range:
+  -
+    from: PROC_IO_LOAD
+    to: ALL
+```
+
+该约束表明：对于 proc 到 disk 之间的因果关系，只建立 proc 的 PROC_IO_LOAD 类指标到 disk 的 ALL 类指标（包括DISK_LOAD、DISK_DELAY、OTHER 类）之间的因果关系。如果同一类指标中包含多个异常指标，则会选择根因评分最高的那个指标。因此，在最终构建因果关系时，会建立 proc 中 PROC_IO_LOAD 类指标中根因评分最高的指标到 disk 中每个指标分类中根因评分最高的指标之间的因果关系。例如，gala_gopher_proc_read_bytes -> gala_gopher_disk_rspeed_kB ，gala_gopher_proc_read_bytes -> gala_gopher_disk_r_await 。
+
+详细的指标粒度的专家规则的定义参见配置文件 `config/infer-rule.yaml`。
+
+
 
 ### 因果图构建
 
@@ -103,9 +200,9 @@
 
 路径评分：对于给定根因传播路径 $path = {m_1, m_2, ..., m_k}$ ，它的根因得分为，
 $$
-score(path) = \{\sum_{i=1}^{k-1}abn_{m_i}\} / (k-1).
+cause\_score(path) = \{\sum_{i=1}^{k-1}score_{m_i}\} / (k-1).
 $$
-其中，$abn_{m_i}$ 表示指标 $m_i$ 对异常 KPI 的影响性得分。另外， $m_k$ 即为异常 KPI ，因此不加入根因得分的计算。
+其中，$score_{m_i}$ 表示指标 $m_i$ 对异常 KPI 的影响性得分（使用 Pearson 相关系数计算）。另外， $m_k$ 即为异常 KPI ，因此不加入根因得分的计算。
 
 ### 输入输出
 
