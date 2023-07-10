@@ -65,45 +65,67 @@ class ObsvMetaCollThread(threading.Thread):
             metadata.update(data)
             self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
 
+def config_kafka_sasl_plaintext(conf):
+    conf['security_protocol'] = "SASL_PLAINTEXT"
+    conf['sasl_mechanism'] = "PLAIN"
+    conf['sasl_plain_username'] = infer_config.kafka_conf.get("username")
+    conf['sasl_plain_password'] = infer_config.kafka_conf.get("password")
 
 def init_metadata_consumer():
-    kafka_server = infer_config.kafka_conf.get('server')
     metadata_topic = infer_config.kafka_conf.get('metadata_topic')
+    conf = {
+        "bootstrap_servers": [infer_config.kafka_conf.get('server')],
+        "group_id": metadata_topic.get('group_id')
+    }
+    if infer_config.kafka_conf.get('auth_type') == 'sasl_plaintext':
+        config_kafka_sasl_plaintext(conf)
     metadata_consumer = KafkaConsumer(
         metadata_topic.get('topic_id'),
-        bootstrap_servers=[kafka_server],
-        group_id=metadata_topic.get('group_id')
+        **conf
     )
     return metadata_consumer
 
 
 def init_kpi_consumer():
-    kafka_server = infer_config.kafka_conf.get('server')
     kpi_kafka_conf = infer_config.kafka_conf.get('abnormal_kpi_topic')
+    conf = {
+        "bootstrap_servers": [infer_config.kafka_conf.get('server')],
+        "group_id": kpi_kafka_conf.get('group_id'),
+        "consumer_timeout_ms": kpi_kafka_conf.get('consumer_to') * 1000
+    }
+    if infer_config.kafka_conf.get('auth_type') == 'sasl_plaintext':
+        config_kafka_sasl_plaintext(conf)
     kpi_consumer = KafkaConsumer(
         kpi_kafka_conf.get('topic_id'),
-        bootstrap_servers=[kafka_server],
-        group_id=kpi_kafka_conf.get('group_id'),
-        consumer_timeout_ms=kpi_kafka_conf.get('consumer_to') * 1000,
+        **conf
     )
     return kpi_consumer
 
 
 def init_metric_consumer():
-    kafka_server = infer_config.kafka_conf.get('server')
     metric_kafka_conf = infer_config.kafka_conf.get('abnormal_metric_topic')
+    conf = {
+        "bootstrap_servers": [infer_config.kafka_conf.get('server')],
+        "group_id": metric_kafka_conf.get('group_id'),
+        "consumer_timeout_ms": metric_kafka_conf.get('consumer_to') * 1000
+    }
+    if infer_config.kafka_conf.get('auth_type') == 'sasl_plaintext':
+        config_kafka_sasl_plaintext(conf)
     metric_consumer = KafkaConsumer(
         metric_kafka_conf.get('topic_id'),
-        bootstrap_servers=[kafka_server],
-        group_id=metric_kafka_conf.get('group_id'),
-        consumer_timeout_ms=metric_kafka_conf.get('consumer_to') * 1000,
+        **conf
     )
     return metric_consumer
 
 
 def init_cause_producer():
-    kafka_server = infer_config.kafka_conf.get('server')
-    cause_producer = KafkaProducer(bootstrap_servers=[kafka_server])
+    conf = {
+        "bootstrap_servers": [infer_config.kafka_conf.get('server')]
+    }
+    if infer_config.kafka_conf.get('auth_type') == 'sasl_plaintext':
+        config_kafka_sasl_plaintext(conf)
+    cause_producer = KafkaProducer(**conf)
+   
     return cause_producer
 
 

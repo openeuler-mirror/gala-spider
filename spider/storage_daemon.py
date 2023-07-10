@@ -29,10 +29,18 @@ class ObsvMetaCollThread(threading.Thread):
     def __init__(self, observe_meta_mgt: ObserveMetaMgt, kafka_conf: dict):
         super().__init__()
         self.observe_meta_mgt = observe_meta_mgt
+        conf = {
+            "bootstrap_servers": [kafka_conf.get('server')],
+            "group_id": kafka_conf.get('metadata_group_id')
+        }
+        if kafka_conf.get('auth_type') == 'sasl_plaintext':
+            conf['security_protocol'] = "SASL_PLAINTEXT"
+            conf['sasl_mechanism'] = "PLAIN"
+            conf['sasl_plain_username'] = kafka_conf.get("username")
+            conf['sasl_plain_password'] = kafka_conf.get("password")
         self.metadata_consumer = KafkaConsumer(
             kafka_conf.get('metadata_topic'),
-            bootstrap_servers=[kafka_conf.get('server')],
-            group_id=kafka_conf.get('metadata_group_id')
+            **conf
         )
 
     def run(self):

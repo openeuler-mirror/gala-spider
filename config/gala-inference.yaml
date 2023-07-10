@@ -25,6 +25,10 @@ kafka:
     consumer_to: 5
   inference_topic:
     topic_id: "gala_cause_inference"
+  # auth_type: plaintext/sasl_plaintext
+  auth_type: "plaintext"
+  username: ""
+  password: ""
 
 arangodb:
   url: "http://localhost:8529"
