@@ -40,3 +40,7 @@ kafka:
     server: "localhost:9092"
     metadata_topic: "gala_gopher_metadata"
     metadata_group_id: "metadata-spider"
+    # auth_type: plaintext/sasl_plaintext
+    auth_type: "plaintext"
+    username: ""
+    password: ""

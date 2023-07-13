@@ -25,6 +25,9 @@ gala-spider 配置文件 `/etc/gala-spider/gala-spider.yaml` 配置项说明如�
   - server：kafka服务器地址
   - metadata_topic：观测对象元数据消息的topic名称
   - metadata_group_id：观测对象元数据消息的消费者组ID
+  - auth_type: kafka 认证方式, 目前支持'plaintext'和'sasl_plaintext'
+  - username: 认证方式为'sasl_plaintext'，连接 kafka 的用户名
+  - password: 认证方式为'sasl_plaintext'，连接 kafka 的密码
 - prometheus：prometheus数据库配置信息
   - base_url：prometheus服务器地址
   - instant_api：单个时间点采集API
@@ -121,6 +124,9 @@ gala-inference 配置文件 `/etc/gala-inference/gala-inference.yaml` 配置项�
     - consumer_to：消费系统异常指标事件消息的超时时间，单位为秒。
   - inference_topic：根因定位结果输出事件消息的配置信息
     - topic_id：根因定位结果输出事件消息的topic名称
+  - auth_type: kafka 认证方式, 目前支持'plaintext'和'sasl_plaintext'
+  - username: 认证方式为'sasl_plaintext'，连接 kafka 的用户名
+  - password: 认证方式为'sasl_plaintext'，连接 kafka 的密码
 - arangodb：arangodb图数据库的配置信息，用于查询根因定位所需要的拓扑子图。
   - url：图数据库的服务器地址
   - db_name：拓扑图存储的数据库名称
