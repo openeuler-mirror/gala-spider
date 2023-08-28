@@ -14,13 +14,14 @@ logger.addHandler(console_hdl)
 logger.setLevel(logging.INFO)
 
 
-def init_logger(name, log_conf):
+def init_logger(name: str, log_conf: dict = None):
     global logger
     logger = logging.getLogger(name)
 
-    log_path = log_conf.get('log_path')
-    max_bytes = log_conf.get('max_size') * 1000 * 1000
-    backup_count = log_conf.get('backup_count')
+    log_conf = log_conf or {}  # Set to an empty dict if None
+    log_path = log_conf.get('log_path', 'default.log')
+    max_bytes = log_conf.get('max_size', 10) * 1000 * 1000  # 10 MB default
+    backup_count = log_conf.get('backup_count', 5)  # 5 backups default
     log_level = log_conf.get('log_level', logging.INFO)
 
     log_path = os.path.realpath(log_path)
