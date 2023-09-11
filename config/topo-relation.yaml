@@ -66,6 +66,43 @@ topo_relations:
               -
                 from: machine_id
                 to: machine_id
+            requires:
+              -
+                side: from
+                label: pod_id
+                value: null
+      -
+        id: belongs_to
+        layer: direct
+        toTypes:
+          -
+            type: pod
+            matches:
+              -
+                from: pod_id
+                to: pod_id
+              -
+                from: machine_id
+                to: machine_id
+  -
+    type: pod
+    dependingitems:
+      -
+        id: connect
+        layer: indirect
+        toTypes:
+          -
+            type: pod
+      -
+        id: runs_on
+        layer: direct
+        toTypes:
+          -
+            type: host
+            matches:
+              -
+                from: machine_id
+                to: machine_id
   -
     type: proc
     dependingitems:
@@ -200,9 +237,6 @@ topo_relations:
               -
                 from: client_ip
                 to: client_ip
-              -
-                from: client_port
-                to: client_port
             conflicts:
               -
                 from: role

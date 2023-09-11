@@ -49,8 +49,11 @@ class ObserveEntityCreator:
             val.append(entity)
 
         processes = observe_entity_map.get(EntityType.PROCESS.value, [])
+        containers = observe_entity_map.get(EntityType.CONTAINER.value, [])
         app_instances = ObserveEntityCreator._create_app_instance_observe_entities(processes)
         res.extend(app_instances)
+        pods = ObserveEntityCreator._create_pod_observe_entities(containers)
+        res.extend(pods)
 
         return res
 
@@ -71,6 +74,20 @@ class ObserveEntityCreator:
             entity_attrs.setdefault('processes', [])
             entity_attrs.get('processes').append(process.id)
 
+        return list(entity_map.values())
+
+    @staticmethod
+    def _create_pod_observe_entities(containers: List[ObserveEntity]) -> List[ObserveEntity]:
+        pod_meta = ObserveMetaMgt().get_observe_meta(EntityType.POD.value)
+        if not pod_meta:
+            return []
+        entity_map: Dict[str, ObserveEntity] = {}
+
+        for container in containers:
+            entity = ObserveEntityCreator._create_entity_from(container, pod_meta)
+            if not entity or not entity.id:
+                continue
+            entity_map.setdefault(entity.id, entity)
         return list(entity_map.values())
 
     @staticmethod

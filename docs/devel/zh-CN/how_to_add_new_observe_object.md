@@ -202,10 +202,13 @@ topo_relations:
 | 关系主体    | 关系类型   | 关系客体    | 关系描述                         |
 | ----------- | ---------- | ----------- | -------------------------------- |
 | host        | connect    | host        | 一台主机与另一台主机的连接关系。 |
+| pod         | connect    | pod         | 一个Pod与另一个Pod的连接关系。   |
 | container   | connect    | container   | 一个容器与另一个容器的连接关系。 |
 | proc        | connect    | proc        | 一个进程与另一个进程的连接关系。 |
+| pod         | runs_on    | host        | 一个Pod运行在一台主机上。        |
 | container   | runs_on    | host        | 一个容器运行在一台主机上。       |
 | proc        | runs_on    | host        | 一个进程运行在一台主机上。       |
+| container   | belongs_to | pod         | 一个容器归属于一个Pod。          |
 | proc        | belongs_to | appinstance | 一个进程归属于一个应用实例。     |
 | proc        | belongs_to | container   | 一个进程归属于一个容器。         |
 | thread      | belongs_to | proc        | 一个线程归属于一个进程。         |
