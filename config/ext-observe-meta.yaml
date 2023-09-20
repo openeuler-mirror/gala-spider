@@ -7,3 +7,11 @@ observe_entities:
       - machine_id
     labels:
       - processes
+  -
+    type: pod
+    level: PROCESS
+    keys:
+      - pod_id
+      - machine_id
+    labels:
+      - pod

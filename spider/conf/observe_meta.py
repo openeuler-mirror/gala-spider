@@ -25,6 +25,7 @@ class ValueCheckEnum(Enum):
 class EntityType(ValueCheckEnum):
     HOST = 'host'
     CONTAINER = 'container'
+    POD = 'pod'
     APPINSTANCE = 'appinstance'
     PROCESS = 'proc'
     THREAD = 'thread'
@@ -82,6 +83,7 @@ entity_level_map = {
     EntityType.PROCESS.value: TopologyLevelType.PROCESS.value,
     EntityType.THREAD.value: TopologyLevelType.PROCESS.value,
     EntityType.CONTAINER.value: TopologyLevelType.PROCESS.value,
+    EntityType.POD.value: TopologyLevelType.PROCESS.value,
     EntityType.APPINSTANCE.value: TopologyLevelType.PROCESS.value,
     EntityType.ENDPOINT.value: TopologyLevelType.PROCESS.value,
     EntityType.SLI.value: TopologyLevelType.PROCESS.value,
