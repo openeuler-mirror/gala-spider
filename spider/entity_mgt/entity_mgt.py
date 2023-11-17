@@ -226,8 +226,7 @@ class IndirectRelationCreator:
         res: List[Relation] = []
         observe_entity_map: Dict[str, ObserveEntity] = {}
         direct_relation_map: Dict[str, List[Relation]] = {}
-        belongs_to_map: Dict[str, Relation] = {}
-        runs_on_map: Dict[str, Relation] = {}
+        belongs_to_map: Dict[str, List[Relation]] = {}
 
         for entity in observe_entities:
             observe_entity_map.setdefault(entity.id, entity)
@@ -236,15 +235,10 @@ class IndirectRelationCreator:
             val = direct_relation_map.setdefault(relation.type, [])
             val.append(relation)
             if relation.type == RelationType.BELONGS_TO.value:
-                belongs_to_map.setdefault(relation.sub_entity.id, relation)
-            elif relation.type == RelationType.RUNS_ON.value:
-                runs_on_map.setdefault(relation.sub_entity.id, relation)
+                belongs_to_map.setdefault(relation.sub_entity.id, []).append(relation)
 
         connect_pairs = IndirectRelationCreator._create_connect_pairs(direct_relation_map)
-
         res.extend(IndirectRelationCreator._create_connect_relations_by_belongs_to(connect_pairs, belongs_to_map))
-        res.extend(IndirectRelationCreator._create_connect_relations_by_runs_on(res, runs_on_map))
-
         res = IndirectRelationCreator._rm_dup_conn_relations(res)
 
         return res
@@ -282,50 +276,52 @@ class IndirectRelationCreator:
         return res
 
     @staticmethod
+    def _get_all_leaf_entities(target_relation_map: Dict[str, List[Relation]], entity_id) -> List[ObserveEntity]:
+        """
+        以指定实体（entity_id）为起点，沿着指定关系（target_relation_map）链找到所有叶子实体放入结果列表中。
+
+        例如，对于 procA --> belongs_to --> containerA --> belongs_to --> podA 形成 belongs_to 关系链中，
+        最终只会将 podA 实体加入到结果列表中。
+
+        功能说明：该函数用于聚合不同部署方式的应用之间的 connect 关系。比如，如果两个 Pod 之间存在多条 tcp 连接关系，那么最终
+            只会在两个 Pod 之间建立一条 connect 关系，并忽略属于两个 Pod 的所有上层 container、process 之间的 connect 关系。
+        实现说明：考虑到 belongs_to 关系可能存在一对多的情况，这里使用 dfs 进行遍历。
+        """
+        res = []
+        selected = set()
+        target_entity_types = {EntityType.PROCESS.value, EntityType.CONTAINER.value, EntityType.POD.value}
+
+        def dfs(entity: ObserveEntity):
+            if entity.id in selected:
+                return
+            selected.add(entity.id)
+
+            is_leaf = True
+            successors = target_relation_map.get(entity.id, [])
+            for succ in successors:
+                if succ.obj_entity.type in target_entity_types:
+                    is_leaf = False
+                    dfs(succ.obj_entity)
+            if is_leaf:
+                res.append(entity)
+
+        selected.add(entity_id)
+        for relation in target_relation_map.get(entity_id, []):
+            if relation.obj_entity.type in target_entity_types:
+                dfs(relation.obj_entity)
+        return res
+
+    @staticmethod
     def _create_connect_relations_by_belongs_to(connect_pairs: List[ConnectPair],
-                                                belongs_to_map: Dict[str, Relation]) -> List[Relation]:
+                                                belongs_to_map: Dict[str, List[Relation]]) -> List[Relation]:
         res: List[Relation] = []
         for entity1, entity2 in connect_pairs:
-            belongs_to_entities1 = []
-            belongs_to_entities2 = []
-
-            tmp = belongs_to_map.get(entity1.id)
-            while tmp is not None:
-                belongs_to_entities1.append(tmp.obj_entity)
-                tmp = belongs_to_map.get(tmp.obj_entity.id)
-            tmp = belongs_to_map.get(entity2.id)
-            while tmp is not None:
-                belongs_to_entities2.append(tmp.obj_entity)
-                tmp = belongs_to_map.get(tmp.obj_entity.id)
+            belongs_to_entities1 = IndirectRelationCreator._get_all_leaf_entities(belongs_to_map, entity1.id)
+            belongs_to_entities2 = IndirectRelationCreator._get_all_leaf_entities(belongs_to_map, entity2.id)
 
             for _entity1 in belongs_to_entities1:
                 for _entity2 in belongs_to_entities2:
                     relation = IndirectRelationCreator.create_connect_relation(_entity1, _entity2)
-                    if relation is not None:
-                        res.append(relation)
-
-        return res
-
-    @staticmethod
-    def _create_connect_relations_by_runs_on(connect_relations: List[Relation],
-                                             runs_on_map: Dict[str, Relation]) -> List[Relation]:
-        res: List[Relation] = []
-        for connect_relation in connect_relations:
-            runs_on_entities1 = []
-            runs_on_entities2 = []
-
-            tmp = runs_on_map.get(connect_relation.sub_entity.id)
-            while tmp is not None:
-                runs_on_entities1.append(tmp.obj_entity)
-                tmp = runs_on_map.get(tmp.obj_entity.id)
-            tmp = runs_on_map.get(connect_relation.obj_entity.id)
-            while tmp is not None:
-                runs_on_entities2.append(tmp.obj_entity)
-                tmp = runs_on_map.get(tmp.obj_entity.id)
-
-            for entity1 in runs_on_entities1:
-                for entity2 in runs_on_entities2:
-                    relation = IndirectRelationCreator.create_connect_relation(entity1, entity2)
                     if relation is not None:
                         res.append(relation)
 

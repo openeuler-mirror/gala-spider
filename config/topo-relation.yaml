@@ -3,12 +3,6 @@ topo_relations:
     type: host
     dependingitems:
       -
-        id: connect
-        layer: indirect
-        toTypes:
-          -
-            type: host
-      -
         id: runs_on
         layer: direct
         toTypes:
@@ -55,7 +49,11 @@ topo_relations:
         layer: indirect
         toTypes:
           -
+            type: proc
+          -
             type: container
+          -
+            type: pod
       -
         id: runs_on
         layer: direct
@@ -91,6 +89,10 @@ topo_relations:
         id: connect
         layer: indirect
         toTypes:
+          -
+            type: proc
+          -
+            type: container
           -
             type: pod
       -
@@ -153,6 +155,10 @@ topo_relations:
         toTypes:
           -
             type: proc
+          -
+            type: container
+          -
+            type: pod
       -
         id: has_vhost
         layer: direct
@@ -237,10 +243,15 @@ topo_relations:
               -
                 from: client_ip
                 to: client_ip
-            conflicts:
+            requires:
               -
-                from: role
-                to: role
+                side: from
+                label: role
+                value: client
+              -
+                side: to
+                label: role
+                value: server
   -
     type: sli
     dependingitems:

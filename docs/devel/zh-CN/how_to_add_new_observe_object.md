@@ -199,27 +199,26 @@ topo_relations:
 
 当前系统默认支持的拓扑关系包括：
 
-| 关系主体    | 关系类型   | 关系客体    | 关系描述                         |
-| ----------- | ---------- | ----------- | -------------------------------- |
-| host        | connect    | host        | 一台主机与另一台主机的连接关系。 |
-| pod         | connect    | pod         | 一个Pod与另一个Pod的连接关系。   |
-| container   | connect    | container   | 一个容器与另一个容器的连接关系。 |
-| proc        | connect    | proc        | 一个进程与另一个进程的连接关系。 |
-| pod         | runs_on    | host        | 一个Pod运行在一台主机上。        |
-| container   | runs_on    | host        | 一个容器运行在一台主机上。       |
-| proc        | runs_on    | host        | 一个进程运行在一台主机上。       |
-| container   | belongs_to | pod         | 一个容器归属于一个Pod。          |
-| proc        | belongs_to | appinstance | 一个进程归属于一个应用实例。     |
-| proc        | belongs_to | container   | 一个进程归属于一个容器。         |
-| thread      | belongs_to | proc        | 一个线程归属于一个进程。         |
-| endpoint    | belongs_to | proc        | 一个通信端口归属于一个进程。     |
-| tcp_link    | belongs_to | proc        | 一个 tcp 连接归属于一个进程。    |
-| sli         | belongs_to | proc        | 一个 sli 归属于一个进程。        |
-| cpu         | belongs_to | host        | 一个 cpu 归属于一台主机。        |
-| nic         | belongs_to | host        | 一个网卡归属于一台主机。         |
-| qdisc       | belongs_to | nic         | 一个 qdisc 归属于一个网卡。      |
-| disk        | belongs_to | host        | 一个磁盘归属于一台主机。         |
-| block       | belongs_to | disk        | 一个块设备归属于一个磁盘。       |
-| file_system | belongs_to | host        | 一个文件系统归属于一台主机。     |
-| tcp_link    | is_peer    | tcp_link    | 一个 tcp 连接的对端 tcp 连接。   |
+| 关系主体    | 关系类型   | 关系客体           | 关系描述                                          |
+| ----------- | ---------- | ------------------ | ------------------------------------------------- |
+| pod         | connect    | proc/container/pod | 一个 Pod 与另一个 proc/container/pod 的连接关系。 |
+| container   | connect    | proc/container/pod | 一个容器与另一个 proc/container/pod 的连接关系。  |
+| proc        | connect    | proc/container/pod | 一个进程与另一个 proc/container/pod 的连接关系。  |
+| pod         | runs_on    | host               | 一个Pod运行在一台主机上。                         |
+| container   | runs_on    | host               | 一个容器运行在一台主机上。                        |
+| proc        | runs_on    | host               | 一个进程运行在一台主机上。                        |
+| container   | belongs_to | pod                | 一个容器归属于一个Pod。                           |
+| proc        | belongs_to | appinstance        | 一个进程归属于一个应用实例。                      |
+| proc        | belongs_to | container          | 一个进程归属于一个容器。                          |
+| thread      | belongs_to | proc               | 一个线程归属于一个进程。                          |
+| endpoint    | belongs_to | proc               | 一个通信端口归属于一个进程。                      |
+| tcp_link    | belongs_to | proc               | 一个 tcp 连接归属于一个进程。                     |
+| sli         | belongs_to | proc               | 一个 sli 归属于一个进程。                         |
+| cpu         | belongs_to | host               | 一个 cpu 归属于一台主机。                         |
+| nic         | belongs_to | host               | 一个网卡归属于一台主机。                          |
+| qdisc       | belongs_to | nic                | 一个 qdisc 归属于一个网卡。                       |
+| disk        | belongs_to | host               | 一个磁盘归属于一台主机。                          |
+| block       | belongs_to | disk               | 一个块设备归属于一个磁盘。                        |
+| file_system | belongs_to | host               | 一个文件系统归属于一台主机。                      |
+| tcp_link    | is_peer    | tcp_link           | 一个 tcp 连接的对端 tcp 连接。                    |
 
