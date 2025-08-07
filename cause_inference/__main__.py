@@ -72,6 +72,7 @@ def config_kafka_sasl_plaintext(conf):
     conf['sasl_plain_username'] = infer_config.kafka_conf.get("username")
     conf['sasl_plain_password'] = infer_config.kafka_conf.get("password")
 
+
 def init_metadata_consumer():
     metadata_topic = infer_config.kafka_conf.get('metadata_topic')
     conf = {

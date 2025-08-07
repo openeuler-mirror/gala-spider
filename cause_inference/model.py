@@ -185,7 +185,7 @@ class CauseTree:
     def append_cause(self, cause: Cause) -> List[MetricNode]:
         newly_cause_nodes = []
         path = cause.path
-        tgt_node = path[len(path)-1]
+        tgt_node = path[len(path) - 1]
         if not self.root_node:
             self.root_node = CauseTNode(tgt_node)
             self.all_node_map.setdefault(tgt_node.node_id, self.root_node)

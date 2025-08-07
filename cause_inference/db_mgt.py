@@ -95,7 +95,7 @@ class PromMgt:
         i = 0
         j = 0
         while i < sample_num and j < record_len:
-            ts = start_ts + (i+1) * self.sample_step
+            ts = start_ts + (i + 1) * self.sample_step
             if ts < records[j].timestamp:
                 i += 1
                 continue

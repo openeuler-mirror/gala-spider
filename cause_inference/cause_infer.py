@@ -265,7 +265,7 @@ def cause_locating(abnormal_kpi: AbnormalEvent, abnormal_metrics: List[AbnormalE
 
     logger.logger.debug('=========inferring result: =============')
     for i, cause in enumerate(causes):
-        logger.logger.debug('The top {} root metric output:'.format(i+1))
+        logger.logger.debug('The top {} root metric output:'.format(i + 1))
         logger.logger.debug('cause metric is: {}, cause entity is: {}, cause score is: {}'.format(
             cause.metric_id,
             cause.entity_id,
