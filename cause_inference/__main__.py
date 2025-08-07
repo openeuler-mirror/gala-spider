@@ -65,6 +65,7 @@ class ObsvMetaCollThread(threading.Thread):
             metadata.update(data)
             self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
 
+
 def config_kafka_sasl_plaintext(conf):
     conf['security_protocol'] = "SASL_PLAINTEXT"
     conf['sasl_mechanism'] = "PLAIN"
