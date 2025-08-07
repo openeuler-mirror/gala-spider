@@ -6,7 +6,7 @@ from cause_inference.model import VirtualMetricCategory, virtual_metric_id_map, 
 
 
 def format_infer_result(causes: List[Cause]):
-    abn_kpi = format_abn_kpi(causes[0].path[len(causes[0].path)-1])
+    abn_kpi = format_abn_kpi(causes[0].path[len(causes[0].path) - 1])
     cause_metrics = format_cause_metrics(causes)
     desc = format_desc_info(abn_kpi, cause_metrics)
 
@@ -64,7 +64,7 @@ def format_cause_metrics(causes: List[Cause]):
 def format_desc_info(abn_kpi, cause_metrics):
     desc = '{}，前 {} 个根因是：'.format(abn_kpi.get('desc'), len(cause_metrics))
     for i, cause_metric in enumerate(cause_metrics):
-        desc += '{}. {}；'.format(i+1, cause_metric.get('desc'))
+        desc += '{}. {}；'.format(i + 1, cause_metric.get('desc'))
     return desc
 
 

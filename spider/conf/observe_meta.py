@@ -117,6 +117,7 @@ class ConflictMeta:
     from_: str
     to: str
 
+
 @dataclass
 class LikeMeta:
     side: str

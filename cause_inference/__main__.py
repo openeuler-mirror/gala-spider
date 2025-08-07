@@ -65,11 +65,13 @@ class ObsvMetaCollThread(threading.Thread):
             metadata.update(data)
             self.observe_meta_mgt.add_observe_meta_from_dict(metadata)
 
+
 def config_kafka_sasl_plaintext(conf):
     conf['security_protocol'] = "SASL_PLAINTEXT"
     conf['sasl_mechanism'] = "PLAIN"
     conf['sasl_plain_username'] = infer_config.kafka_conf.get("username")
     conf['sasl_plain_password'] = infer_config.kafka_conf.get("password")
+
 
 def init_metadata_consumer():
     metadata_topic = infer_config.kafka_conf.get('metadata_topic')
