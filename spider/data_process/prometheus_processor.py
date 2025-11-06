@@ -27,6 +27,8 @@ def _filter_unique_labels(labels: List[Label], entity_keys: List[str]) -> Dict[s
 def _id_of_keys(keys: Dict[str, str], entity_keys: List[str]) -> (bool, tuple):
     tmp = []
     for key in entity_keys:
+        if key == "toa_client_ip":
+            continue
         if key not in keys:
             logger.logger.debug("Key {} not exist.".format(key))
             return False, ()

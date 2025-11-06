@@ -43,6 +43,8 @@ class ObserveEntity:
             return
         ids = [self.attrs.get(MACHINE_ID_KEY_NAME), self.type]
         for key in observe_meta.keys:
+            if key == "toa_client_ip":
+                continue
             if key not in self.attrs:
                 logger.logger.debug("Required key {} of observe type {} not exist.".format(key, self.type))
                 return
