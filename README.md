@@ -20,7 +20,7 @@ gala-spider 项目提供了两个功能模块，它们分别是：
 - **Prometheus**：时序数据库，gala-gopher 组件采集的观测指标数据会上报到 Prometheus，再由 gala-spider 做进一步处理。
 - **kafka**：消息中间件，用于存储 gala-gopher 上报的观测对象元数据信息，异常检测组件上报的异常事件，以及 cause-inference 组件上报的根因定位结果。
 - **arangodb**：图数据库，用于存储 spider-storage 生成的拓扑图。
-- **gala-gopher**：数据采集组件，详细内容参见 [gala-gopher 项目](https://gitee.com/openeuler/A-Ops/tree/master/gala-gopher)。
+- **gala-gopher**：数据采集组件，详细内容参见 [gala-gopher 项目](https://atomgit.com/openeuler/gala-gopher)。
 - **arangodb-ui**：arangodb 提供的 UI 界面，可用于查询拓扑图。
 
 ## 快速开始
