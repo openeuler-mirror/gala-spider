@@ -29,7 +29,7 @@ setup(
     version=VERSION,
     description=DESC,
     author_email="hexiujun1@huawei.com",
-    url="https://gitee.com/openeuler/A-Ops/tree/master/gala-spider",
+    url="https://atomgit.com/openeuler/A-Ops/tree/master/gala-spider",
     keywords=["OS Topological Graph Storage", "Cause Inference"],
     install_requires=INSTALL_REQUIRES,
     packages=find_packages(exclude=('tests',)),
