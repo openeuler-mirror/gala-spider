@@ -5,7 +5,7 @@ Version:	1.0.0
 Release:	1
 Summary:	OS topological graph storage service and cause inference service for gala-ops project
 License:	MulanPSL2
-URL:		https://gitee.com/openeuler/gala-spider
+URL:		https://atomgit.com/openeuler/gala-spider
 Source0:	%{name}-%{version}.tar.gz
 
 BuildRequires:  python3-setuptools systemd
