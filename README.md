@@ -1,3 +1,5 @@
+[English](./README_EN.md) | 简体中文
+
 # gala-spider
 
 gala-spider 提供 OS 级别的拓扑图绘制功能，它将定期获取 gala-gopher （一个 OS 层面的数据采集软件）在某个时间点采集的所有观测对象的数据，并计算它们之间的拓扑关系，最终将生成的拓扑图保存到图数据库 arangodb 中。
