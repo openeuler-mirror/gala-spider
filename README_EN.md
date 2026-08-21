@@ -1,3 +1,5 @@
+English | [简体中文](./README.md)
+
 # gala-spider
 
 gala-spider provides the OS-level topology drawing function. It periodically obtains the data of all observed objects collected by gala-gopher (OS-level data collection software) at a certain time point and calculates the topology relationship between them. The generated topology is saved to the graph database ArangoDB.
