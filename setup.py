@@ -21,7 +21,8 @@ INSTALL_REQUIRES = [
     "pyarango>=2.0.1",
     "kafka-python>=2.0.2",
     "scipy",
-    "networkx"
+    "networkx",
+    "lz4"
 ]
 
 setup(
